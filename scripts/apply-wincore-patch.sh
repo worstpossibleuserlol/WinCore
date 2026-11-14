@@ -299,7 +299,7 @@ diagnostics_methods = """    private void configureWinCoreDiagnostics(View view,
         int memoryClassMb = activityManager != null ? activityManager.getMemoryClass() : 0;
         int largeMemoryClassMb = activityManager != null ? activityManager.getLargeMemoryClass() : 0;
 
-        return "WinCore 0.4.0 compatibility report\\n" +
+        return "WinCore 0.5.0 compatibility report\\n" +
             "Device: " + Build.MANUFACTURER + " " + Build.MODEL + "\\n" +
             "Android: " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")\\n" +
             "SoC / hardware: " + socModel + "\\n" +
@@ -307,6 +307,8 @@ diagnostics_methods = """    private void configureWinCoreDiagnostics(View view,
             "CPU cores: " + Runtime.getRuntime().availableProcessors() + "\\n" +
             "Supported ABIs: " + supportedAbis + "\\n" +
             "RAM: " + totalMemory + " total, " + availableMemory + " available\\n" +
+            "Internal app storage: " + getWinCoreStorageInfo(context.getFilesDir()) + "\\n" +
+            "External app storage: " + getWinCoreStorageInfo(context.getExternalFilesDir(null)) + "\\n" +
             "App memory class: " + memoryClassMb + " MB\\n" +
             "Large app memory class: " + largeMemoryClassMb + " MB\\n" +
             "OpenGL ES: " + openGLES + "\\n" +
@@ -331,6 +333,35 @@ diagnostics_methods = """    private void configureWinCoreDiagnostics(View view,
         int minor = (version >>> 12) & 0x3FF;
         int patch = version & 0xFFF;
         return String.format(java.util.Locale.US, "%d.%d.%d", major, minor, patch);
+    }
+
+    private String getWinCoreStorageInfo(File directory) {
+        if (directory == null || !directory.exists()) return "Unavailable";
+
+        try {
+            android.os.StatFs storage = new android.os.StatFs(directory.getAbsolutePath());
+            long totalBytes = storage.getTotalBytes();
+            long availableBytes = storage.getAvailableBytes();
+            return formatWinCoreStorageBytes(totalBytes) + " total, " +
+                formatWinCoreStorageBytes(availableBytes) + " available";
+        }
+        catch (IllegalArgumentException | SecurityException exception) {
+            return "Unavailable";
+        }
+    }
+
+    private String formatWinCoreStorageBytes(long bytes) {
+        final double kib = 1024.0;
+        final double mib = kib * 1024.0;
+        final double gib = mib * 1024.0;
+
+        if (bytes >= gib) {
+            return String.format(java.util.Locale.US, "%.1f GB", bytes / gib);
+        }
+        if (bytes >= mib) {
+            return String.format(java.util.Locale.US, "%.1f MB", bytes / mib);
+        }
+        return String.format(java.util.Locale.US, "%.1f KB", bytes / kib);
     }
 
     private String formatWinCoreMemory(long bytes) {

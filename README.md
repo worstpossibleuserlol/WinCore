@@ -2,20 +2,20 @@
 
 WinCore is an independent community modification of [Winlator](https://github.com/brunodev85/winlator), an Android compatibility environment for running Windows applications and games with Wine and Box86/Box64.
 
-## Version 0.4.0 — diagnostics refresh and sharing
+## Version 0.5.0 — storage diagnostics
 
-This release keeps the original Winlator interface and extends WinCore's compatibility report workflow.
+This release keeps the original Winlator interface and extends the local compatibility report with app-storage capacity.
 
 - Keeps the Winlator containers, shortcuts, settings, and controller UI.
 - Uses the separate Android application ID `com.wincore`.
-- Adds **Refresh** to update live RAM readings and regenerate the device report.
-- Adds **Share Report** using Android's native share sheet. The user chooses whether to share the text and which app receives it.
-- Retains **Copy Report**.
-- Adds app-process bitness and Android app memory-class information.
-- Retains device, Android, SoC/hardware, CPU-core, ABI, RAM, OpenGL ES, and Android-advertised Vulkan details.
-- Sets Android versionName to **0.4.0** and versionCode to **400**.
+- Adds internal app-storage total and available space.
+- Adds external app-specific storage total and available space when Android provides that location.
+- Updates storage readings when **Refresh** is pressed.
+- Includes storage readings in **Copy Report** and **Share Report**.
+- Keeps all diagnostics local until the user explicitly copies or shares the report.
+- Sets Android versionName to **0.5.0** and versionCode to **500**.
 
-Reports are generated locally. WinCore does not upload them. Sharing is user-initiated through Android's share menu. Memory-class values are Android limits/allowances for the app process, not a measurement of free physical RAM or a guarantee of game performance. Vulkan values are Android-advertised features, not a runtime graphics test.
+Storage values describe the app's internal and app-specific external storage locations. They are not a complete measurement of every shared-storage volume or SD card, and free space alone does not guarantee that a game will install or run. Vulkan values remain Android-advertised features rather than a runtime graphics test.
 
 ## Build
 
@@ -35,7 +35,7 @@ The Android build requires JDK 17, Android SDK Platform 35, NDK 24.0.8215888, an
 upstream/app/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-GitHub Actions builds and validates the debug APK, then uploads it as the **WinCore-0.4.0-debug** artifact.
+GitHub Actions builds and validates the debug APK, then uploads it as the **WinCore-0.5.0-debug** artifact.
 
 ## Upstream and licensing
 
