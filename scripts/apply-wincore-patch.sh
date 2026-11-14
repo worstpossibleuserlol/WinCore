@@ -688,3 +688,517 @@ print(
     f"branding, and local device diagnostics ({updated_locales} locale files)."
 )
 PY
+
+
+# WinCore 2.0.0: automatic device profiles and app-wide UI customization.
+# This second patch stage is deliberately repeatable so CI and local builds
+# can apply it more than once without duplicating Java or XML content.
+python3 - "$APP_MODULE" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+app = Path(sys.argv[1])
+
+def require_file(relative_path: str) -> Path:
+    path = app / relative_path
+    if not path.is_file():
+        raise SystemExit(f"Required upstream file is missing: {path}")
+    return path
+
+def insert_after_once(path: Path, anchor: str, addition: str, marker: str) -> None:
+    source = path.read_text(encoding="utf-8")
+    if marker in source:
+        return
+    count = source.count(anchor)
+    if count != 1:
+        raise SystemExit(f"Expected one insertion anchor in {path}, found {count}.")
+    path.write_text(source.replace(anchor, anchor + addition, 1), encoding="utf-8")
+
+def add_import(path: Path, import_line: str) -> None:
+    source = path.read_text(encoding="utf-8")
+    if import_line in source:
+        return
+    package_line_end = source.find("\n")
+    if package_line_end < 0 or not source.startswith("package "):
+        raise SystemExit(f"Cannot locate package declaration in {path}.")
+    source = source[:package_line_end + 1] + "\n" + import_line + source[package_line_end + 1:]
+    path.write_text(source, encoding="utf-8")
+
+# A device-family selector maps to existing, upstream Box64 presets. Detection
+# is based on Android's SoC/hardware identifiers, not on benchmark assumptions.
+profile_java = r'''package com.winlator;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.os.Build;
+
+import androidx.preference.PreferenceManager;
+
+import com.winlator.box64.Box64Preset;
+
+import java.util.Locale;
+import java.util.regex.Pattern;
+
+public final class WinCoreDeviceProfile {
+    public static final String AUTO = "AUTO";
+    public static final String DIMENSITY = "DIMENSITY";
+    public static final String SNAPDRAGON = "SNAPDRAGON";
+    public static final String EXYNOS = "EXYNOS";
+    public static final String UNKNOWN = "UNKNOWN";
+
+    private static final Pattern MEDIATEK_SOC = Pattern.compile("(^|[^a-z0-9])mt[0-9]{4,}");
+    private static final Pattern QUALCOMM_SOC = Pattern.compile("(^|[^a-z0-9])sm[0-9]{4,}");
+    private static final Pattern EXYNOS_SOC = Pattern.compile("(^|[^a-z0-9])s5e[0-9]+");
+
+    private WinCoreDeviceProfile() {}
+
+    public static String detectFamily() {
+        String soc = "";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && Build.SOC_MODEL != null) {
+            soc = Build.SOC_MODEL;
+        }
+        String hardware = Build.HARDWARE != null ? Build.HARDWARE : "";
+        String manufacturer = Build.MANUFACTURER != null ? Build.MANUFACTURER : "";
+        String combined = (soc + " " + hardware + " " + manufacturer).toLowerCase(Locale.US);
+
+        if (combined.contains("exynos") || EXYNOS_SOC.matcher(combined).find()) {
+            return EXYNOS;
+        }
+        if (combined.contains("dimensity") || combined.contains("mediatek") ||
+            MEDIATEK_SOC.matcher(combined).find()) {
+            return DIMENSITY;
+        }
+        if (combined.contains("snapdragon") || combined.contains("qualcomm") ||
+            combined.contains("qcom") || QUALCOMM_SOC.matcher(combined).find()) {
+            return SNAPDRAGON;
+        }
+        return UNKNOWN;
+    }
+
+    public static String getSelectedProfile(Context context) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        String selected = preferences.getString("wincore_cpu_profile", AUTO);
+        return selected != null ? selected : AUTO;
+    }
+
+    public static String resolveFamily(Context context) {
+        String selected = getSelectedProfile(context);
+        return AUTO.equals(selected) ? detectFamily() : selected;
+    }
+
+    public static String getBox64Preset(String family) {
+        if (DIMENSITY.equals(family)) return Box64Preset.INTERMEDIATE;
+        if (SNAPDRAGON.equals(family)) return Box64Preset.PERFORMANCE;
+        if (EXYNOS.equals(family)) return Box64Preset.STABILITY;
+        return null;
+    }
+
+    public static String resolveBox64Preset(Context context, String containerPreset) {
+        String family = resolveFamily(context);
+        String profilePreset = getBox64Preset(family);
+        return profilePreset != null ? profilePreset : containerPreset;
+    }
+
+    public static String getDisplayName(String family) {
+        if (DIMENSITY.equals(family)) return "MediaTek Dimensity";
+        if (SNAPDRAGON.equals(family)) return "Qualcomm Snapdragon";
+        if (EXYNOS.equals(family)) return "Samsung Exynos";
+        return "Unknown";
+    }
+
+    public static String getSummary(Context context) {
+        String selected = getSelectedProfile(context);
+        String detected = detectFamily();
+        String active = AUTO.equals(selected) ? detected : selected;
+        String preset = getBox64Preset(active);
+        StringBuilder summary = new StringBuilder();
+        summary.append("Detected chipset family: ").append(getDisplayName(detected)).append("\n");
+        summary.append("Selected profile: ").append(AUTO.equals(selected) ? "Automatic" : getDisplayName(selected)).append("\n");
+        if (preset != null) {
+            summary.append("Launch-time Box64 preset: ").append(preset).append("\n");
+            summary.append("This profile is selected automatically each time a guest program starts.");
+        }
+        else {
+            summary.append("No supported family was identified. Each container's saved Box64 preset will be used.");
+        }
+        summary.append("\nProfile presets are starting points, not benchmark-verified optimizations. They do not change CPU frequency, cores, or hardware.");
+        return summary.toString();
+    }
+}
+'''
+profile_path = app / "src/main/java/com/winlator/WinCoreDeviceProfile.java"
+profile_path.parent.mkdir(parents=True, exist_ok=True)
+if not profile_path.exists():
+    profile_path.write_text(profile_java, encoding="utf-8")
+else:
+    existing = profile_path.read_text(encoding="utf-8")
+    if "public final class WinCoreDeviceProfile" not in existing:
+        raise SystemExit(f"Refusing to overwrite unrelated file: {profile_path}")
+
+appearance_java = r'''package com.winlator;
+
+import android.app.Activity;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
+import android.util.TypedValue;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.CompoundButton;
+import android.widget.EditText;
+import android.widget.ProgressBar;
+import android.widget.Spinner;
+import android.widget.TextView;
+
+import androidx.preference.PreferenceManager;
+
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.WeakHashMap;
+
+public final class WinCoreAppearance {
+    public static final int DEFAULT_ACCENT = 0xff0288d1;
+    private static final Map<TextView, Float> ORIGINAL_TEXT_SIZES =
+        Collections.synchronizedMap(new WeakHashMap<TextView, Float>());
+
+    private WinCoreAppearance() {}
+
+    public static float getTextScale(Context context) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        String density = preferences.getString("wincore_ui_density", "STANDARD");
+        if ("COMPACT".equals(density)) return 0.92f;
+        if ("LARGE".equals(density)) return 1.08f;
+        return 1.0f;
+    }
+
+    public static void apply(Activity activity) {
+        if (activity == null || activity.getWindow() == null) return;
+        apply(activity.getWindow().getDecorView(), activity);
+    }
+
+    public static void apply(View root, Context context) {
+        if (root == null || context == null) return;
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        int accent = preferences.getInt("wincore_ui_accent", DEFAULT_ACCENT);
+        apply(root, accent, getTextScale(context));
+    }
+
+    public static void apply(View root, int accent, float textScale) {
+        if (root == null) return;
+        ColorStateList tint = ColorStateList.valueOf(accent);
+
+        if (root instanceof TextView) {
+            TextView textView = (TextView)root;
+            Float originalSize = ORIGINAL_TEXT_SIZES.get(textView);
+            if (originalSize == null) {
+                originalSize = textView.getTextSize();
+                ORIGINAL_TEXT_SIZES.put(textView, originalSize);
+            }
+            textView.setTextSize(TypedValue.COMPLEX_UNIT_PX, originalSize * textScale);
+        }
+
+        if (root instanceof CompoundButton) {
+            ((CompoundButton)root).setButtonTintList(tint);
+        }
+        if (root instanceof ProgressBar) {
+            ProgressBar progressBar = (ProgressBar)root;
+            progressBar.setProgressTintList(tint);
+            progressBar.setIndeterminateTintList(tint);
+        }
+        if (root instanceof Button || root instanceof FloatingActionButton ||
+            root instanceof Spinner || root instanceof EditText ||
+            root instanceof androidx.appcompat.widget.Toolbar) {
+            root.setBackgroundTintList(tint);
+        }
+
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup)root;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                apply(group.getChildAt(i), accent, textScale);
+            }
+        }
+    }
+}
+'''
+appearance_path = app / "src/main/java/com/winlator/WinCoreAppearance.java"
+appearance_path.parent.mkdir(parents=True, exist_ok=True)
+if not appearance_path.exists():
+    appearance_path.write_text(appearance_java, encoding="utf-8")
+else:
+    existing = appearance_path.read_text(encoding="utf-8")
+    if "public final class WinCoreAppearance" not in existing:
+        raise SystemExit(f"Refusing to overwrite unrelated file: {appearance_path}")
+
+# Resolve the selected device profile in the real guest launch path. The saved
+# container preset remains untouched and is used if the SoC family is unknown.
+launcher_path = require_file("src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java")
+launcher_source = launcher_path.read_text(encoding="utf-8")
+launcher_import = "import com.winlator.WinCoreDeviceProfile;\n"
+if launcher_import not in launcher_source:
+    anchor = "import com.winlator.box64.Box64Preset;\n"
+    if launcher_source.count(anchor) != 1:
+        raise SystemExit("Could not locate the guest-launcher import anchor.")
+    launcher_source = launcher_source.replace(anchor, anchor + launcher_import, 1)
+old_preset = "        envVars.putAll(Box64PresetManager.getEnvVars(context, box64Preset));"
+new_preset = """        String effectivePreset = WinCoreDeviceProfile.resolveBox64Preset(context, box64Preset);
+        envVars.putAll(Box64PresetManager.getEnvVars(context, effectivePreset));"""
+if old_preset in launcher_source:
+    launcher_source = launcher_source.replace(old_preset, new_preset, 1)
+elif new_preset not in launcher_source:
+    raise SystemExit("Could not safely patch the Box64 guest-launch preset selection.")
+launcher_path.write_text(launcher_source, encoding="utf-8")
+
+# Add profile and appearance controls to the existing Winlator Settings screen.
+layout_path = require_file("src/main/res/layout/settings_fragment.xml")
+layout_source = layout_path.read_text(encoding="utf-8")
+profile_ui = """            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout style="@style/FieldSet">
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/wincore_profile_description" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/wincore_cpu_profile" />
+
+                    <Spinner
+                        style="@style/ComboBox"
+                        android:id="@+id/SWinCoreDeviceProfile"
+                        android:layout_width="match_parent" />
+
+                    <TextView
+                        android:id="@+id/TVWinCoreDeviceProfileStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:textSize="12sp"
+                        android:textIsSelectable="true" />
+
+                    <View style="@style/FieldSeparator" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/wincore_ui_accent" />
+
+                    <com.winlator.widget.ColorPickerView
+                        android:id="@+id/CPVWinCoreAccent"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/wincore_ui_density" />
+
+                    <Spinner
+                        style="@style/ComboBox"
+                        android:id="@+id/SWinCoreUIDensity"
+                        android:layout_width="match_parent" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/wincore_ui_save_note"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <TextView
+                    style="@style/FieldSetLabel"
+                    android:text="@string/wincore_customization" />
+            </FrameLayout>
+
+"""
+layout_anchor = '                <TextView\n                    style="@style/FieldSetLabel"\n                    android:text="@string/wincore_device_diagnostics" />\n            </FrameLayout>\n'
+if 'android:id="@+id/SWinCoreDeviceProfile"' not in layout_source:
+    if layout_source.count(layout_anchor) != 1:
+        raise SystemExit("Could not find the WinCore diagnostics layout anchor.")
+    layout_source = layout_source.replace(layout_anchor, layout_anchor + profile_ui, 1)
+layout_path.write_text(layout_source, encoding="utf-8")
+
+# Add fallback English strings without disturbing any upstream translations.
+strings_path = require_file("src/main/res/values/strings.xml")
+strings_source = strings_path.read_text(encoding="utf-8")
+strings = """    <string name="wincore_customization">WinCore 2.0.0</string>
+    <string name="wincore_profile_description">Choose a device family profile. Automatic mode detects the chipset and selects a Box64 preset whenever a guest program launches.</string>
+    <string name="wincore_cpu_profile">CPU compatibility profile</string>
+    <string name="wincore_profile_auto">Automatic</string>
+    <string name="wincore_profile_dimensity">Dimensity</string>
+    <string name="wincore_profile_snapdragon">Snapdragon</string>
+    <string name="wincore_profile_exynos">Exynos</string>
+    <string name="wincore_ui_accent">Accent color</string>
+    <string name="wincore_ui_density">Interface text size</string>
+    <string name="wincore_density_compact">Compact</string>
+    <string name="wincore_density_standard">Standard</string>
+    <string name="wincore_density_large">Large</string>
+    <string name="wincore_ui_save_note">The existing Confirm button saves the appearance settings. Device profiles are saved immediately and applied automatically on the next launch.</string>
+"""
+if 'name="wincore_customization"' not in strings_source:
+    end = "</resources>"
+    if strings_source.count(end) != 1:
+        raise SystemExit("Could not find the end of the default strings resource.")
+    strings_source = strings_source.replace(end, strings + end, 1)
+strings_path.write_text(strings_source, encoding="utf-8")
+
+# Bind controls in SettingsFragment and persist UI customization with the
+# existing Confirm action. Profile selection itself is persisted immediately.
+settings_path = require_file("src/main/java/com/winlator/SettingsFragment.java")
+settings_source = settings_path.read_text(encoding="utf-8")
+binding = "        configureWinCoreDiagnostics(view, context);\n"
+new_binding = binding + "        configureWinCoreV2Settings(view, context);\n"
+if "configureWinCoreV2Settings(view, context);" not in settings_source:
+    if settings_source.count(binding) != 1:
+        raise SystemExit("Could not find the WinCore diagnostics binding.")
+    settings_source = settings_source.replace(binding, new_binding, 1)
+
+confirm_anchor = "            SharedPreferences.Editor editor = preferences.edit();\n            editor.putString(\"soundfont\", sSoundFont.getSelectedItem().toString());"
+confirm_addition = """            SharedPreferences.Editor editor = preferences.edit();
+            ColorPickerView cpvWinCoreAccent = view.findViewById(R.id.CPVWinCoreAccent);
+            Spinner sWinCoreUIDensity = view.findViewById(R.id.SWinCoreUIDensity);
+            String[] winCoreDensityValues = {"COMPACT", "STANDARD", "LARGE"};
+            int densityPosition = Math.max(0, Math.min(sWinCoreUIDensity.getSelectedItemPosition(), winCoreDensityValues.length - 1));
+            editor.putInt("wincore_ui_accent", cpvWinCoreAccent.getColor());
+            editor.putString("wincore_ui_density", winCoreDensityValues[densityPosition]);
+            editor.putString("soundfont", sSoundFont.getSelectedItem().toString());"""
+if "editor.putInt(\"wincore_ui_accent\"" not in settings_source:
+    if settings_source.count(confirm_anchor) != 1:
+        raise SystemExit("Could not find the existing Settings Confirm save block.")
+    settings_source = settings_source.replace(confirm_anchor, confirm_addition, 1)
+
+commit_anchor = "            if (editor.commit()) {\n"
+commit_addition = "            if (editor.commit()) {\n                WinCoreAppearance.apply(getActivity());\n"
+if "WinCoreAppearance.apply(getActivity());" not in settings_source:
+    if settings_source.count(commit_anchor) != 1:
+        raise SystemExit("Could not find the existing Settings save completion block.")
+    settings_source = settings_source.replace(commit_anchor, commit_addition, 1)
+
+settings_methods = r'''    private void configureWinCoreV2Settings(View view, Context context) {
+        Spinner profileSpinner = view.findViewById(R.id.SWinCoreDeviceProfile);
+        TextView profileStatus = view.findViewById(R.id.TVWinCoreDeviceProfileStatus);
+        String[] profileIds = {
+            WinCoreDeviceProfile.AUTO,
+            WinCoreDeviceProfile.DIMENSITY,
+            WinCoreDeviceProfile.SNAPDRAGON,
+            WinCoreDeviceProfile.EXYNOS
+        };
+        String[] profileLabels = {
+            getString(R.string.wincore_profile_auto),
+            getString(R.string.wincore_profile_dimensity),
+            getString(R.string.wincore_profile_snapdragon),
+            getString(R.string.wincore_profile_exynos)
+        };
+        profileSpinner.setAdapter(new ArrayAdapter<>(
+            context, android.R.layout.simple_spinner_dropdown_item, profileLabels
+        ));
+
+        String selectedProfile = WinCoreDeviceProfile.getSelectedProfile(context);
+        int selectedPosition = 0;
+        for (int i = 0; i < profileIds.length; i++) {
+            if (profileIds[i].equals(selectedProfile)) selectedPosition = i;
+        }
+        profileSpinner.setSelection(selectedPosition, false);
+        profileStatus.setText(WinCoreDeviceProfile.getSummary(context));
+        profileSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View selectedView, int position, long id) {
+                preferences.edit().putString("wincore_cpu_profile", profileIds[position]).apply();
+                profileStatus.setText(WinCoreDeviceProfile.getSummary(context));
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+
+        ColorPickerView accentPicker = view.findViewById(R.id.CPVWinCoreAccent);
+        accentPicker.setPalette(
+            0x0288d1, 0x651fff, 0x009688, 0xff9800,
+            0xe91e63, 0x607d8b, 0x8bc34a, 0x9c27b0
+        );
+        accentPicker.setColor(preferences.getInt(
+            "wincore_ui_accent", WinCoreAppearance.DEFAULT_ACCENT
+        ));
+
+        Spinner densitySpinner = view.findViewById(R.id.SWinCoreUIDensity);
+        String[] densityLabels = {
+            getString(R.string.wincore_density_compact),
+            getString(R.string.wincore_density_standard),
+            getString(R.string.wincore_density_large)
+        };
+        densitySpinner.setAdapter(new ArrayAdapter<>(
+            context, android.R.layout.simple_spinner_dropdown_item, densityLabels
+        ));
+        String density = preferences.getString("wincore_ui_density", "STANDARD");
+        int densityPosition = "COMPACT".equals(density) ? 0 : ("LARGE".equals(density) ? 2 : 1);
+        densitySpinner.setSelection(densityPosition, false);
+
+        WinCoreAppearance.apply(view, context);
+    }
+
+'''
+if "private void configureWinCoreV2Settings(" not in settings_source:
+    anchor = "    private void loadGamepadModelSpinner(Spinner sGamepadModel) {\n"
+    if settings_source.count(anchor) != 1:
+        raise SystemExit("Could not find SettingsFragment method insertion point.")
+    settings_source = settings_source.replace(anchor, settings_methods + anchor, 1)
+settings_path.write_text(settings_source, encoding="utf-8")
+
+# Apply the selected accent and text scale to each app screen, including
+# fragments created after the activity's first launch.
+main_path = require_file("src/main/java/com/winlator/MainActivity.java")
+main_source = main_path.read_text(encoding="utf-8")
+view_import = "import android.view.View;\n"
+if view_import not in main_source:
+    anchor = "import android.view.MenuItem;\n"
+    if main_source.count(anchor) != 1:
+        raise SystemExit("Could not locate MainActivity's Android view imports.")
+    main_source = main_source.replace(anchor, anchor + view_import, 1)
+
+fragment_hook = """        getSupportFragmentManager().registerFragmentLifecycleCallbacks(
+            new FragmentManager.FragmentLifecycleCallbacks() {
+                @Override
+                public void onFragmentViewCreated(
+                    @NonNull FragmentManager fragmentManager,
+                    @NonNull Fragment fragment,
+                    @NonNull View fragmentView,
+                    @Nullable Bundle savedInstanceState
+                ) {
+                    WinCoreAppearance.apply(fragmentView, MainActivity.this);
+                }
+            },
+            true
+        );
+
+"""
+activity_anchor = "        setContentView(R.layout.main_activity);\n"
+if "registerFragmentLifecycleCallbacks(" not in main_source:
+    if main_source.count(activity_anchor) != 1:
+        raise SystemExit("Could not find MainActivity content view initialization.")
+    main_source = main_source.replace(activity_anchor, activity_anchor + "\n" + fragment_hook, 1)
+
+resume_hook = """    @Override
+    protected void onResume() {
+        super.onResume();
+        WinCoreAppearance.apply(getWindow().getDecorView(), this);
+    }
+
+"""
+if "protected void onResume()" not in main_source:
+    anchor = "    @Override\n    protected void attachBaseContext(Context newBase) {\n"
+    if main_source.count(anchor) != 1:
+        raise SystemExit("Could not find MainActivity lifecycle insertion point.")
+    main_source = main_source.replace(anchor, resume_hook + anchor, 1)
+main_path.write_text(main_source, encoding="utf-8")
+
+print("WinCore 2.0.0 automatic device profiles and customizable app-wide UI patch applied.")
+PY

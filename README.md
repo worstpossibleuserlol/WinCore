@@ -2,40 +2,23 @@
 
 WinCore is an independent community modification of [Winlator](https://github.com/brunodev85/winlator), an Android compatibility environment for running Windows applications and games with Wine and Box86/Box64.
 
-## Version 1.0.0 — first stable release
+## Version 2.0.0 — automatic device profiles and customizable UI
 
-WinCore 1.0.0 consolidates the existing diagnostics and hardens container auditing so a single malformed saved container does not prevent the remaining containers from being checked.
+WinCore 2.0.0 adds automatic launch-time device profiles and app-wide appearance controls while preserving the existing Winlator screens, containers, shortcuts, and controller flow.
 
-- Isolates each container audit with its own error boundary and reports a review finding if that entry cannot be checked safely.
-- Handles an unavailable RootFS object without crashing the audit.
-- Retains the 0.9.0 aggregate audit summary and all earlier device, storage, graphics-capability, configuration, and mapped-drive checks.
-- Keeps the audit read-only. It does not repair, rewrite, delete, or change containers, settings, environment variables, or drive mappings.
-- Sets Android versionName to **1.0.0** and versionCode to **10000**.
+- **Automatic CPU compatibility profile:** detects common MediaTek Dimensity, Qualcomm Snapdragon, and Samsung Exynos SoC identifiers from Android build properties.
+- **Manual family selection:** choose Automatic, Dimensity, Snapdragon, or Exynos in the existing Settings screen.
+- **Automatic launch application:** each guest-program launch resolves the selected profile and supplies the corresponding existing Box64 preset without requiring a separate apply action.
+- **Safe unknown-device fallback:** when the SoC family cannot be identified, WinCore retains the preset saved in the selected container.
+- **Profile mapping:** Dimensity uses the Intermediate Box64 preset, Snapdragon uses Performance, and Exynos uses Stability. These are starting mappings, not benchmark-verified device optimizations.
+- **App-wide accent color:** choose from eight accent colors; the preference is applied to controls across WinCore screens.
+- **Interface text density:** choose Compact, Standard, or Large text sizing.
+- **Live UI propagation:** appearance settings are applied when the activity resumes and whenever a fragment view is created.
+- **No hardware modification:** profiles only choose Box64 environment presets. They do not change CPU frequency, core count, voltage, or GPU driver binaries.
+- Retains previous read-only device/storage diagnostics and per-container compatibility auditing.
+- Sets Android versionName to **2.0.0** and versionCode **20000**.
 
-The stable milestone does not claim that a container can launch a particular game, that a renderer initializes, or that performance is improved. A successful APK build confirms compilation and package integrity, not on-device game compatibility.
-
-## Previous version: 0.9.0 — container audit summary
-
-- Added a summary of containers checked, containers with no structural findings, containers needing review, and total findings.
-- Retained the read-only per-container report and mapped-drive availability checks.
-
-## Previous version: 0.8.0 — mapped drive availability checks
-
-
-
-This release extends the read-only container audit to check whether each saved mapped host path currently exists and is readable.
-
-- Keeps the Winlator containers, shortcuts, settings, and controller UI.
-- Uses the separate Android application ID `com.wincore`.
-- Adds display-resolution format validation.
-- Checks environment-variable entry names, malformed entries, and duplicate names without applying or changing any values.
-- Checks drive mapping syntax, duplicate drive letters, absolute host paths, and whether each mapped host path currently exists and is readable. The report shows only drive letters and status, not full host paths.
-- Retains the 0.6.0 RootFS, container folder/config, Wine prefix, selected Wine binary, Box64 preset, graphics renderer, and DirectX wrapper checks.
-- Adds the new findings to the local compatibility report, available through the existing Copy Report and Share Report actions.
-- Keeps all checks read-only. No container files, environment variables, drive mappings, or settings are changed.
-- Sets Android versionName to **0.8.0** and versionCode to **800**.
-
-These checks validate saved settings and basic file structure only. They do not launch a game, execute a renderer test, benchmark performance, or guarantee compatibility. A readable path check is only a point-in-time filesystem check; Android storage permissions, removable storage state, and later changes can still affect access.
+The earlier 100-item feature proposal is a roadmap, not a claim that 100 separate engine capabilities have been delivered in this release. WinCore 2.0.0 implements the core automatic-profile and UI-customization functionality; unimplemented items remain future work.
 
 ## Build
 
@@ -55,7 +38,7 @@ The Android build requires JDK 17, Android SDK Platform 35, NDK 24.0.8215888, an
 upstream/app/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-GitHub Actions builds and validates the debug APK, then uploads it as the **WinCore-1.0.0-debug** artifact.
+GitHub Actions builds and validates the debug APK, then uploads it as the **WinCore-2.0.0-debug** artifact.
 
 ## Upstream and licensing
 

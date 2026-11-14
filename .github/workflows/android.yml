@@ -15,8 +15,8 @@ jobs:
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-      WINCORE_VERSION: 1.0.0
-      WINCORE_VERSION_CODE: 10000
+      WINCORE_VERSION: 2.0.0
+      WINCORE_VERSION_CODE: 20000
     steps:
       - name: Checkout WinCore and upstream submodules
         uses: actions/checkout@v4
@@ -68,7 +68,16 @@ jobs:
           grep -q 'buildWinCoreContainerAuditWithSummary' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           grep -q 'rootFS != null && rootFS.isValid()' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           grep -q 'audit could not complete safely; saved data may be malformed' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
-          grep -q 'WinCore 1.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'WinCoreDeviceProfile.resolveBox64Preset(context, box64Preset)' upstream/app/app/src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java
+          grep -q 'SWinCoreDeviceProfile' upstream/app/app/src/main/res/layout/settings_fragment.xml
+          grep -q 'CPVWinCoreAccent' upstream/app/app/src/main/res/layout/settings_fragment.xml
+          grep -q 'SWinCoreUIDensity' upstream/app/app/src/main/res/layout/settings_fragment.xml
+          grep -q 'WinCoreAppearance.apply' upstream/app/app/src/main/java/com/winlator/MainActivity.java
+          grep -q 'wincore_ui_accent' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'wincore_ui_density' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'WinCore 2.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          test -s upstream/app/app/src/main/java/com/winlator/WinCoreDeviceProfile.java
+          test -s upstream/app/app/src/main/java/com/winlator/WinCoreAppearance.java
 
       - name: Build debug APK
         working-directory: upstream/app
@@ -91,7 +100,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: WinCore-1.0.0-debug
-          path: dist/WinCore-1.0.0-debug.apk
+          name: WinCore-2.0.0-debug
+          path: dist/WinCore-2.0.0-debug.apk
           if-no-files-found: error
           retention-days: 14
