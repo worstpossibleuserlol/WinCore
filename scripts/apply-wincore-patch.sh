@@ -165,6 +165,13 @@ diagnostics_layout = """            <FrameLayout
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:text="@string/share_diagnostics" />
+
+                    <Button
+                        android:id="@+id/BTCheckWinCoreContainers"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="@string/wincore_check_containers" />
                 </LinearLayout>
 
                 <TextView
@@ -191,6 +198,7 @@ new_strings = """    <string name="wincore_device_diagnostics">WinCore Device Di
     <string name="wincore_diagnostics_copied">Diagnostics copied</string>
     <string name="wincore_diagnostics_unavailable">Clipboard is unavailable</string>
     <string name="wincore_share_report_title">Share WinCore compatibility report</string>
+    <string name="wincore_check_containers">Check Containers</string>
 """
 if 'name="wincore_device_diagnostics"' not in strings_source:
     anchor = "<resources>\n"
@@ -250,6 +258,13 @@ diagnostics_methods = """    private void configureWinCoreDiagnostics(View view,
                 shareIntent,
                 context.getString(R.string.wincore_share_report_title)
             ));
+        });
+
+        view.findViewById(R.id.BTCheckWinCoreContainers).setOnClickListener((v) -> {
+            reportView.setText(
+                buildWinCoreDiagnostics(context) + "\\n\\n" +
+                buildWinCoreContainerAudit(context)
+            );
         });
     }
 
@@ -370,11 +385,150 @@ diagnostics_methods = """    private void configureWinCoreDiagnostics(View view,
     }
 
 """
+diagnostics_methods = diagnostics_methods.replace("WinCore 0.5.0 compatibility report", "WinCore " + version + " compatibility report")
 if "private void configureWinCoreDiagnostics(" not in java_source:
     anchor = "    private void loadGamepadModelSpinner(Spinner sGamepadModel) {\n"
     if java_source.count(anchor) != 1:
         raise SystemExit(f"Could not find the diagnostics method insertion point in {java_path}.")
     java_source = java_source.replace(anchor, diagnostics_methods + anchor, 1)
+container_audit_methods = r"""    private String buildWinCoreContainerAudit(Context context) {
+        StringBuilder report = new StringBuilder();
+        report.append("Container Compatibility Check\n");
+        report.append("This checks saved configuration and required files only; it does not certify game compatibility.\n");
+
+        com.winlator.xenvironment.RootFS rootFS = com.winlator.xenvironment.RootFS.find(context);
+        boolean rootFSReady = rootFS.isValid();
+        report.append("RootFS: ").append(rootFSReady ? "Ready" : "Missing or incomplete").append("\n");
+
+        final java.util.ArrayList<com.winlator.container.Container> containers;
+        try {
+            containers = new com.winlator.container.ContainerManager(context).getContainers();
+        }
+        catch (RuntimeException exception) {
+            report.append("Container scan: Unable to complete safely\n");
+            return report.toString();
+        }
+
+        report.append("Saved containers: ").append(containers.size()).append("\n");
+        if (containers.isEmpty()) {
+            report.append("No saved containers were found.\n");
+            return report.toString();
+        }
+
+        for (com.winlator.container.Container container : containers) {
+            java.util.ArrayList<String> issues = new java.util.ArrayList<>();
+            File containerDir = container.getRootDir();
+            boolean containerDirectoryReady = containerDir != null && containerDir.isDirectory();
+            boolean configReady = containerDirectoryReady &&
+                container.getConfigFile().isFile() && container.getConfigFile().length() > 0;
+            File winePrefix = containerDirectoryReady ? new File(containerDir, ".wine") : null;
+            boolean prefixReady = winePrefix != null && winePrefix.isDirectory();
+            boolean windowsDirectoryReady = prefixReady &&
+                new File(winePrefix, "drive_c/windows").isDirectory();
+
+            if (!rootFSReady) issues.add("RootFS is missing or incomplete");
+            if (!containerDirectoryReady) issues.add("container folder is missing");
+            if (!configReady) issues.add("container configuration file is missing or empty");
+            if (!prefixReady) issues.add("Wine prefix folder is missing");
+            else if (!windowsDirectoryReady) issues.add("Windows system folder is missing");
+
+            String wineIdentifier = container.getWineVersion();
+            File wineBinary;
+            if (com.winlator.core.WineInfo.isMainWineVersion(wineIdentifier)) {
+                wineBinary = new File(rootFS.getRootDir(), "opt/wine/bin/wine");
+            }
+            else {
+                wineBinary = new File(
+                    new File(rootFS.getInstalledWineDir(), wineIdentifier),
+                    "bin/wine"
+                );
+            }
+            boolean wineReady = wineBinary.isFile();
+            if (!wineReady) issues.add("selected Wine binary was not found");
+
+            String presetId = container.getBox64Preset();
+            if (presetId == null || presetId.isEmpty()) presetId = com.winlator.box64.Box64Preset.DEFAULT;
+            boolean presetReady;
+            try {
+                presetReady = com.winlator.box64.Box64PresetManager.getPreset(context, presetId) != null;
+            }
+            catch (RuntimeException exception) {
+                presetReady = false;
+            }
+            if (!presetReady) issues.add("selected Box64 preset is missing or invalid");
+
+            String rawGraphics = container.getGraphicsDriver();
+            String[] graphics = com.winlator.container.GraphicsDrivers.parseIdentifiers(rawGraphics);
+            String vulkanId = graphics.length > 0 ? graphics[0] : "";
+            String openGLId = graphics.length > 1 ? graphics[1] : "";
+            boolean graphicsReady;
+            if (rawGraphics == null || rawGraphics.isEmpty()) {
+                graphicsReady = true;
+            }
+            else if (rawGraphics.contains(",")) {
+                graphicsReady =
+                    com.winlator.container.GraphicsDrivers.isVulkanDriver(vulkanId) &&
+                    com.winlator.container.GraphicsDrivers.isOpenGLDriver(openGLId);
+            }
+            else {
+                graphicsReady =
+                    com.winlator.container.GraphicsDrivers.isVulkanDriver(rawGraphics) ||
+                    com.winlator.container.GraphicsDrivers.isOpenGLDriver(rawGraphics);
+            }
+            if (!graphicsReady) issues.add("graphics renderer selection is unrecognized");
+
+            String dxWrapper = container.getDXWrapper();
+            boolean dxWrapperReady =
+                com.winlator.container.DXWrappers.DXVK.equals(dxWrapper) ||
+                com.winlator.container.DXWrappers.WINED3D.equals(dxWrapper) ||
+                com.winlator.container.DXWrappers.VKD3D.equals(dxWrapper) ||
+                com.winlator.container.DXWrappers.CNC_DDRAW.equals(dxWrapper) ||
+                com.winlator.container.DXWrappers.D7VK.equals(dxWrapper);
+            if (!dxWrapperReady) issues.add("DirectX wrapper selection is unrecognized");
+
+            report.append("\n").append(container.getName()).append(": ")
+                .append(issues.isEmpty() ? "No structural issues found" : "Review needed")
+                .append("\n");
+            report.append("  Container folder/config: ")
+                .append(containerDirectoryReady && configReady ? "OK" : "Check")
+                .append("\n");
+            report.append("  Wine prefix/Windows folder: ")
+                .append(prefixReady && windowsDirectoryReady ? "OK" : "Check")
+                .append("\n");
+            report.append("  Wine version: ").append(wineIdentifier)
+                .append(wineReady ? " (binary found)" : " (binary not found)")
+                .append("\n");
+            report.append("  Box64 preset: ").append(presetId)
+                .append(presetReady ? " (preset found)" : " (preset missing/invalid)")
+                .append("\n");
+            report.append("  Graphics settings: Vulkan ")
+                .append(com.winlator.container.GraphicsDrivers.getName(vulkanId))
+                .append(" / OpenGL ")
+                .append(com.winlator.container.GraphicsDrivers.getName(openGLId))
+                .append(graphicsReady ? " (recognized settings)" : " (review selection)")
+                .append("\n");
+            report.append("  DirectX wrapper: ")
+                .append(dxWrapper != null ? com.winlator.container.DXWrappers.getName(dxWrapper) : "Unknown")
+                .append(dxWrapperReady ? " (recognized setting)" : " (review selection)")
+                .append("\n");
+
+            if (!issues.isEmpty()) {
+                report.append("  Findings:\n");
+                for (String issue : issues) report.append("  - ").append(issue).append("\n");
+            }
+        }
+
+        report.append("\nNo container settings were changed. Renderer and wrapper labels show saved selections, not proof that a driver loads or a game runs.\n");
+        return report.toString();
+    }
+
+"""
+if "private String buildWinCoreContainerAudit(" not in java_source:
+    anchor = "    private void loadGamepadModelSpinner(Spinner sGamepadModel) {\n"
+    if java_source.count(anchor) != 1:
+        raise SystemExit(f"Could not find the container audit insertion point in {java_path}.")
+    java_source = java_source.replace(anchor, container_audit_methods + anchor, 1)
+
 java_path.write_text(java_source, encoding="utf-8")
 
 print(

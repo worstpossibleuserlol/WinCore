@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.6.0 — Container compatibility checks
+
+- Added a **Check Containers** action to the existing Settings diagnostics panel.
+- Audits the RootFS marker and each saved container's folder, config file, Wine prefix, and Windows system folder.
+- Checks for the selected Wine binary and selected Box64 preset.
+- Validates that saved Vulkan/OpenGL renderer and DirectX wrapper selections use recognized identifiers.
+- Adds per-container findings to the compatibility report, which remains local unless the user chooses Copy or Share.
+- Keeps the audit read-only; it does not alter container files, environment variables, drivers, or settings.
+- Updated Android versionName to 0.6.0 and versionCode to 600.
+- Updated CI to verify the container audit code and build the 0.6.0 ARM64 debug APK.
+
+### Scope and limitations
+
+- A successful structural check is not a game compatibility guarantee or performance benchmark.
+- Recognized renderer/wrapper settings do not prove that native graphics drivers or translation layers load successfully.
+- No changes to Wine, Box64, Mesa, DXVK, VKD3D, or native execution logic.
+- No automatic tuning, installation, cleanup, deletion, or FPS claims.
+
 ## 0.5.0 — Storage diagnostics
 
 - Added total and available internal app-storage readings to the compatibility report.
