@@ -1,0 +1,56 @@
+name: WinCore Android Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug-apk:
+    name: Build WinCore 0.1.0 debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout WinCore and upstream submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build components
+        run: |
+          sdkmanager --install \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "ndk;24.0.8215888" \
+            "cmake;3.22.1"
+
+      - name: Apply WinCore branding and version
+        run: bash scripts/apply-wincore-patch.sh
+
+      - name: Build debug APK
+        working-directory: upstream/app
+        run: bash gradlew --no-daemon --stacktrace assembleDebug
+
+      - name: Stage APK
+        run: |
+          mkdir -p dist
+          cp upstream/app/app/build/outputs/apk/debug/app-debug.apk dist/WinCore-0.1.0-debug.apk
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinCore-0.1.0-debug
+          path: dist/WinCore-0.1.0-debug.apk
+          if-no-files-found: error
+          retention-days: 14
