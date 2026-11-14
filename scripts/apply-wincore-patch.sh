@@ -643,7 +643,7 @@ container_summary_methods = r"""    private String buildWinCoreContainerAuditWit
         int review = 0;
         int findingCount = 0;
 
-        for (String line : audit.split("\\n")) {
+        for (String line : audit.split("\n")) {
             if (line.endsWith(": No structural issues found")) {
                 checked++;
                 clean++;
@@ -658,18 +658,18 @@ container_summary_methods = r"""    private String buildWinCoreContainerAuditWit
         }
 
         StringBuilder summary = new StringBuilder();
-        summary.append("Container Audit Summary\\n");
-        summary.append("Containers checked: ").append(checked).append("\\n");
-        summary.append("No structural issues: ").append(clean).append("\\n");
-        summary.append("Need review: ").append(review).append("\\n");
-        summary.append("Findings: ").append(findingCount).append("\\n\\n");
+        summary.append("Container Audit Summary\n");
+        summary.append("Containers checked: ").append(checked).append("\n");
+        summary.append("No structural issues: ").append(clean).append("\n");
+        summary.append("Need review: ").append(review).append("\n");
+        summary.append("Findings: ").append(findingCount).append("\n\n");
         summary.append(audit);
         return summary.toString();
     }
 
 """
 if "private String buildWinCoreContainerAuditWithSummary(" not in java_source:
-    anchor = "    private void loadGamepadModelSpinner(Spinner sGamepadModel) {\\n"
+    anchor = "    private void loadGamepadModelSpinner(Spinner sGamepadModel) {\n"
     if java_source.count(anchor) != 1:
         raise SystemExit(f"Could not find the container audit summary insertion point in {java_path}.")
     java_source = java_source.replace(anchor, container_summary_methods + anchor, 1)
