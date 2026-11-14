@@ -15,8 +15,8 @@ jobs:
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-      WINCORE_VERSION: 0.8.0
-      WINCORE_VERSION_CODE: 800
+      WINCORE_VERSION: 0.9.0
+      WINCORE_VERSION_CODE: 900
     steps:
       - name: Checkout WinCore and upstream submodules
         uses: actions/checkout@v4
@@ -47,7 +47,7 @@ jobs:
       - name: Apply WinCore branding and extended container validation
         run: bash scripts/apply-wincore-patch.sh upstream "$WINCORE_VERSION"
 
-      - name: Verify diagnostics and extended container checks
+      - name: Verify diagnostics and container audit summary
         run: |
           grep -q 'BTRefreshWinCoreDiagnostics' upstream/app/app/src/main/res/layout/settings_fragment.xml
           grep -q 'BTShareWinCoreDiagnostics' upstream/app/app/src/main/res/layout/settings_fragment.xml
@@ -64,7 +64,9 @@ jobs:
           grep -q 'Environment variables:' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           grep -q 'Drive mappings:' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           grep -q 'Mapped drive availability:' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
-          grep -q 'WinCore 0.8.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'Container Audit Summary' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'buildWinCoreContainerAuditWithSummary' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'WinCore 0.9.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
 
       - name: Build debug APK
         working-directory: upstream/app
@@ -87,7 +89,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: WinCore-0.8.0-debug
-          path: dist/WinCore-0.8.0-debug.apk
+          name: WinCore-0.9.0-debug
+          path: dist/WinCore-0.9.0-debug.apk
           if-no-files-found: error
           retention-days: 14

@@ -263,7 +263,7 @@ diagnostics_methods = """    private void configureWinCoreDiagnostics(View view,
         view.findViewById(R.id.BTCheckWinCoreContainers).setOnClickListener((v) -> {
             reportView.setText(
                 buildWinCoreDiagnostics(context) + "\\n\\n" +
-                buildWinCoreContainerAudit(context)
+                buildWinCoreContainerAuditWithSummary(context)
             );
         });
     }
@@ -635,6 +635,44 @@ if "private String buildWinCoreContainerAudit(" not in java_source:
     if java_source.count(anchor) != 1:
         raise SystemExit(f"Could not find the container audit insertion point in {java_path}.")
     java_source = java_source.replace(anchor, container_audit_methods + anchor, 1)
+
+container_summary_methods = r"""    private String buildWinCoreContainerAuditWithSummary(Context context) {
+        String audit = buildWinCoreContainerAudit(context);
+        int checked = 0;
+        int clean = 0;
+        int review = 0;
+        int findingCount = 0;
+
+        for (String line : audit.split("\\n")) {
+            if (line.endsWith(": No structural issues found")) {
+                checked++;
+                clean++;
+            }
+            else if (line.endsWith(": Review needed")) {
+                checked++;
+                review++;
+            }
+            else if (line.startsWith("  - ")) {
+                findingCount++;
+            }
+        }
+
+        StringBuilder summary = new StringBuilder();
+        summary.append("Container Audit Summary\\n");
+        summary.append("Containers checked: ").append(checked).append("\\n");
+        summary.append("No structural issues: ").append(clean).append("\\n");
+        summary.append("Need review: ").append(review).append("\\n");
+        summary.append("Findings: ").append(findingCount).append("\\n\\n");
+        summary.append(audit);
+        return summary.toString();
+    }
+
+"""
+if "private String buildWinCoreContainerAuditWithSummary(" not in java_source:
+    anchor = "    private void loadGamepadModelSpinner(Spinner sGamepadModel) {\\n"
+    if java_source.count(anchor) != 1:
+        raise SystemExit(f"Could not find the container audit summary insertion point in {java_path}.")
+    java_source = java_source.replace(anchor, container_summary_methods + anchor, 1)
 
 java_path.write_text(java_source, encoding="utf-8")
 

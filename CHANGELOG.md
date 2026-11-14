@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.0 — Container audit summary
+
+- Added an aggregate summary to the Check Containers report.
+- Reports the number of containers checked, clean containers, containers needing review, and total findings.
+- Retains all 0.8.0 mapped-drive availability checks and earlier diagnostics.
+- The summary is calculated from existing read-only audit results; no container settings or files are changed.
+- Updated Android versionName to 0.9.0 and versionCode to 900.
+- Updated CI to verify the summary implementation and build the 0.9.0 ARM64 debug APK.
+
+### Scope and limitations
+
+- Summary counts structural findings only; it does not establish whether a Windows game launches or performs well.
+- No automatic repairs, performance tuning, or compatibility guarantees are included.
+
+
 ## 0.8.0 — Mapped drive availability checks
 
 - Extended the read-only container audit to check whether each mapped host path exists and is readable at audit time.

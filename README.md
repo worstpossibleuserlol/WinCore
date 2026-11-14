@@ -2,7 +2,18 @@
 
 WinCore is an independent community modification of [Winlator](https://github.com/brunodev85/winlator), an Android compatibility environment for running Windows applications and games with Wine and Box86/Box64.
 
-## Version 0.8.0 — mapped drive availability checks
+## Version 0.9.0 — container audit summary
+
+This release adds a concise summary above the existing per-container compatibility findings.
+
+- Reports how many containers were checked, how many had no structural issues, how many need review, and the total number of findings.
+- Keeps all existing 0.8.0 mapped-drive availability checks and earlier diagnostics.
+- The summary is derived from the same read-only audit output; it does not change container settings or files.
+- Sets Android versionName to **0.9.0** and versionCode to **900**.
+
+The summary counts structural findings only. It does not measure game compatibility, launch success, frame rate, or renderer performance.
+
+## Previous version: 0.8.0 — mapped drive availability checks
 
 
 
@@ -38,7 +49,7 @@ The Android build requires JDK 17, Android SDK Platform 35, NDK 24.0.8215888, an
 upstream/app/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-GitHub Actions builds and validates the debug APK, then uploads it as the **WinCore-0.8.0-debug** artifact.
+GitHub Actions builds and validates the debug APK, then uploads it as the **WinCore-0.9.0-debug** artifact.
 
 ## Upstream and licensing
 
