@@ -2,19 +2,19 @@
 
 WinCore is an independent community modification of [Winlator](https://github.com/brunodev85/winlator), an Android compatibility environment for running Windows applications and games with Wine and Box86/Box64.
 
-## Version 0.2.0 — diagnostics prototype
+## Version 0.3.0 — graphics capability diagnostics
 
-This release keeps the original Winlator interface and container workflow while adding a small WinCore-specific compatibility tool.
+This release keeps the original Winlator interface and container workflow while extending the WinCore compatibility report.
 
 - Keeps the Winlator containers, shortcuts, settings, and controller UI.
-- Uses a separate Android application ID: com.wincore.
-- Displays the app name as **WinCore**.
-- Adds a local device-diagnostics panel near the top of Settings.
-- Reports device model, Android release/API, SoC or hardware identifier, CPU core count, supported ABIs, total/available RAM, and OpenGL ES version.
-- Adds a **Copy Report** button. The report is copied only when the user presses the button; WinCore does not upload it.
-- Sets the prototype version to **0.2.0**.
+- Uses the separate Android application ID `com.wincore`.
+- Adds local Vulkan capability information to the Settings diagnostics panel.
+- Reports Android-advertised Vulkan API version and Vulkan hardware feature level when present.
+- Retains the device, Android, SoC/hardware, CPU-core, ABI, RAM, and OpenGL ES information from 0.2.0.
+- Keeps the **Copy Report** action local; WinCore does not upload the report.
+- Sets Android versionName to **0.3.0** and versionCode to **300**.
 
-The diagnostics screen is for compatibility troubleshooting. It is not a benchmark, does not measure FPS, and does not automatically change game settings. Wine, Box64, graphics drivers, and native runtime components remain upstream components in this release. No performance uplift or game compatibility guarantee is claimed.
+The Vulkan values come from Android's advertised system feature declarations. They are useful compatibility clues, not a Vulkan runtime test, GPU benchmark, proof of driver quality, or guarantee that a Windows game will run. The actual graphics driver and Winlator translation path still need application-level testing. No performance uplift or game compatibility guarantee is claimed.
 
 ## Build
 
@@ -34,7 +34,7 @@ The Android build requires JDK 17, Android SDK Platform 35, NDK 24.0.8215888, an
 upstream/app/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-GitHub Actions builds the debug APK and uploads it as the **WinCore-0.2.0-debug** artifact when the workflow succeeds.
+GitHub Actions builds and validates the debug APK, then uploads it as the **WinCore-0.3.0-debug** artifact.
 
 ## Upstream and licensing
 

@@ -163,7 +163,7 @@ insert_once(
 strings_path = resource_root / "values" / "strings.xml"
 strings_source = strings_path.read_text(encoding="utf-8")
 new_strings = """    <string name="wincore_device_diagnostics">WinCore Device Diagnostics</string>
-    <string name="wincore_diagnostics_description">Local device details for compatibility reports. Nothing is uploaded.</string>
+    <string name="wincore_diagnostics_description">Local device details and Android-advertised graphics capabilities. Nothing is uploaded.</string>
     <string name="copy_diagnostics">Copy Report</string>
     <string name="wincore_diagnostics_copied">Diagnostics copied</string>
     <string name="wincore_diagnostics_unavailable">Clipboard is unavailable</string>
@@ -245,14 +245,46 @@ diagnostics_methods = """    private void configureWinCoreDiagnostics(View view,
         String availableMemory = memoryInfo.availMem > 0 ?
             formatWinCoreMemory(memoryInfo.availMem) : "Unknown";
 
-        return "WinCore 0.2.0 compatibility report\\n" +
+        int vulkanApi = findWinCoreFeatureVersion(context,
+            android.content.pm.PackageManager.FEATURE_VULKAN_HARDWARE_VERSION);
+        int vulkanLevel = findWinCoreFeatureVersion(context,
+            android.content.pm.PackageManager.FEATURE_VULKAN_HARDWARE_LEVEL);
+        String vulkanSupport = vulkanApi >= 0 ? "Advertised by Android" :
+            (vulkanLevel >= 0 ? "Hardware level advertised" : "Not advertised");
+        String vulkanVersion = vulkanApi >= 0 ?
+            formatWinCoreVulkanVersion(vulkanApi) : "Unknown";
+        String vulkanHardwareLevel = vulkanLevel >= 0 ?
+            "Level " + vulkanLevel : "Not advertised";
+
+        return "WinCore 0.3.0 compatibility report\\n" +
             "Device: " + Build.MANUFACTURER + " " + Build.MODEL + "\\n" +
             "Android: " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")\\n" +
             "SoC / hardware: " + socModel + "\\n" +
             "CPU cores: " + Runtime.getRuntime().availableProcessors() + "\\n" +
             "Supported ABIs: " + supportedAbis + "\\n" +
             "RAM: " + totalMemory + " total, " + availableMemory + " available\\n" +
-            "OpenGL ES: " + openGLES;
+            "OpenGL ES: " + openGLES + "\\n" +
+            "Vulkan: " + vulkanSupport + "\\n" +
+            "Vulkan API: " + vulkanVersion + "\\n" +
+            "Vulkan hardware level: " + vulkanHardwareLevel;
+    }
+
+    private int findWinCoreFeatureVersion(Context context, String featureName) {
+        android.content.pm.FeatureInfo[] features =
+            context.getPackageManager().getSystemAvailableFeatures();
+        if (features == null) return -1;
+
+        for (android.content.pm.FeatureInfo feature : features) {
+            if (featureName.equals(feature.name)) return feature.version;
+        }
+        return -1;
+    }
+
+    private String formatWinCoreVulkanVersion(int version) {
+        int major = (version >>> 22) & 0x7F;
+        int minor = (version >>> 12) & 0x3FF;
+        int patch = version & 0xFFF;
+        return String.format(java.util.Locale.US, "%d.%d.%d", major, minor, patch);
     }
 
     private String formatWinCoreMemory(long bytes) {

@@ -15,8 +15,8 @@ jobs:
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-      WINCORE_VERSION: 0.2.0
-      WINCORE_VERSION_CODE: 200
+      WINCORE_VERSION: 0.3.0
+      WINCORE_VERSION_CODE: 300
     steps:
       - name: Checkout WinCore and upstream submodules
         uses: actions/checkout@v4
@@ -44,8 +44,13 @@ jobs:
             "ndk;24.0.8215888" \
             "cmake;3.22.1"
 
-      - name: Apply WinCore branding and diagnostics
+      - name: Apply WinCore branding and graphics diagnostics
         run: bash scripts/apply-wincore-patch.sh upstream "$WINCORE_VERSION"
+
+      - name: Verify the patch added Vulkan diagnostics
+        run: |
+          grep -q 'Vulkan API:' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'Vulkan hardware level:' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
 
       - name: Build debug APK
         working-directory: upstream/app
@@ -68,7 +73,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: WinCore-0.2.0-debug
-          path: dist/WinCore-0.2.0-debug.apk
+          name: WinCore-0.3.0-debug
+          path: dist/WinCore-0.3.0-debug.apk
           if-no-files-found: error
           retention-days: 14
