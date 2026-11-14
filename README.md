@@ -1,18 +1,20 @@
 # WinCore
 
-WinCore is a community modification of [Winlator](https://github.com/brunodev85/winlator), an Android compatibility environment for running Windows applications and games with Wine and Box86/Box64.
+WinCore is an independent community modification of [Winlator](https://github.com/brunodev85/winlator), an Android compatibility environment for running Windows applications and games with Wine and Box86/Box64.
 
-## Version 0.1.0 — Foundation prototype
+## Version 0.2.0 — diagnostics prototype
 
-This first prototype establishes a buildable WinCore identity while keeping the original Winlator interface and container workflow.
+This release keeps the original Winlator interface and container workflow while adding a small WinCore-specific compatibility tool.
 
 - Keeps the Winlator containers, shortcuts, settings, and controller UI.
-- Uses a separate Android application ID: `com.wincore`.
+- Uses a separate Android application ID: com.wincore.
 - Displays the app name as **WinCore**.
-- Sets the prototype version to **0.1.0**.
-- Includes a GitHub Actions workflow that builds a debug APK from the pinned upstream source.
+- Adds a local device-diagnostics panel near the top of Settings.
+- Reports device model, Android release/API, SoC or hardware identifier, CPU core count, supported ABIs, total/available RAM, and OpenGL ES version.
+- Adds a **Copy Report** button. The report is copied only when the user presses the button; WinCore does not upload it.
+- Sets the prototype version to **0.2.0**.
 
-**Important:** version 0.1.0 does not claim faster emulation or broader game compatibility. The Wine, Box64, graphics, and native runtime components remain upstream components in this foundation prototype. Performance changes will be added and tested in later versions.
+The diagnostics screen is for compatibility troubleshooting. It is not a benchmark, does not measure FPS, and does not automatically change game settings. Wine, Box64, graphics drivers, and native runtime components remain upstream components in this release. No performance uplift or game compatibility guarantee is claimed.
 
 ## Build
 
@@ -32,7 +34,7 @@ The Android build requires JDK 17, Android SDK Platform 35, NDK 24.0.8215888, an
 upstream/app/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-GitHub Actions also builds the APK and uploads it as the `WinCore-0.1.0-debug` artifact when the workflow succeeds.
+GitHub Actions builds the debug APK and uploads it as the **WinCore-0.2.0-debug** artifact when the workflow succeeds.
 
 ## Upstream and licensing
 

@@ -10,11 +10,13 @@ permissions:
 
 jobs:
   build-debug-apk:
-    name: Build WinCore 0.1.0 debug APK
+    name: Build WinCore debug APK
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      WINCORE_VERSION: 0.2.0
+      WINCORE_VERSION_CODE: 200
     steps:
       - name: Checkout WinCore and upstream submodules
         uses: actions/checkout@v4
@@ -26,6 +28,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
 
       - name: Install Android build components
         run: |
@@ -41,22 +44,31 @@ jobs:
             "ndk;24.0.8215888" \
             "cmake;3.22.1"
 
-      - name: Apply WinCore branding and version
-        run: bash scripts/apply-wincore-patch.sh
+      - name: Apply WinCore branding and diagnostics
+        run: bash scripts/apply-wincore-patch.sh upstream "$WINCORE_VERSION"
 
       - name: Build debug APK
         working-directory: upstream/app
         run: bash gradlew --no-daemon --stacktrace assembleDebug
 
-      - name: Stage APK
+      - name: Verify package metadata and APK integrity
         run: |
+          APK="upstream/app/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          unzip -t "$APK"
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          BADGING="$("$AAPT" dump badging "$APK")"
+          grep -q "package: name='com.wincore'" <<< "$BADGING"
+          grep -q "versionCode='$WINCORE_VERSION_CODE'" <<< "$BADGING"
+          grep -q "versionName='$WINCORE_VERSION'" <<< "$BADGING"
+          unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           mkdir -p dist
-          cp upstream/app/app/build/outputs/apk/debug/app-debug.apk dist/WinCore-0.1.0-debug.apk
+          cp "$APK" "dist/WinCore-$WINCORE_VERSION-debug.apk"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: WinCore-0.1.0-debug
-          path: dist/WinCore-0.1.0-debug.apk
+          name: WinCore-0.2.0-debug
+          path: dist/WinCore-0.2.0-debug.apk
           if-no-files-found: error
           retention-days: 14
