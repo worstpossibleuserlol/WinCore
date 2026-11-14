@@ -2,21 +2,21 @@
 
 WinCore is an independent community modification of [Winlator](https://github.com/brunodev85/winlator), an Android compatibility environment for running Windows applications and games with Wine and Box86/Box64.
 
-## Version 0.6.0 — container compatibility checks
+## Version 0.7.0 — extended container validation
 
-This release adds a read-only audit for saved containers while keeping the original Winlator interface and launch workflow.
+This release expands the read-only container audit with basic checks of each container's saved display, environment, and drive settings.
 
 - Keeps the Winlator containers, shortcuts, settings, and controller UI.
 - Uses the separate Android application ID `com.wincore`.
-- Adds **Check Containers** to the existing Settings diagnostics panel.
-- Checks the RootFS marker, saved container folder/configuration, Wine prefix and Windows system folder.
-- Checks whether each selected Wine binary and Box64 preset can be found.
-- Checks whether saved Vulkan/OpenGL renderer and DirectX wrapper selections are recognized.
-- Adds findings to the local report, which can then be copied or explicitly shared using Android's share menu.
-- Keeps the audit read-only: it does not modify containers, install components, delete files, or change settings.
-- Sets Android versionName to **0.6.0** and versionCode to **600**.
+- Adds display-resolution format validation.
+- Checks environment-variable entry names, malformed entries, and duplicate names without applying or changing any values.
+- Checks drive mapping syntax, duplicate drive letters, and whether mapped host paths are absolute.
+- Retains the 0.6.0 RootFS, container folder/config, Wine prefix, selected Wine binary, Box64 preset, graphics renderer, and DirectX wrapper checks.
+- Adds the new findings to the local compatibility report, available through the existing Copy Report and Share Report actions.
+- Keeps all checks read-only. No container files, environment variables, drive mappings, or settings are changed.
+- Sets Android versionName to **0.7.0** and versionCode to **700**.
 
-The audit validates saved configuration and the presence of selected files only. A renderer name being recognized does not prove that its native driver loads, and a structurally valid container does not guarantee that a particular game will launch or run well. Vulkan capability values remain Android-advertised feature data, not a runtime graphics test.
+These checks validate saved settings and basic file structure only. They do not launch a game, execute a renderer test, benchmark performance, or guarantee compatibility. A mapped host path being absolute does not guarantee that Android currently grants access to it.
 
 ## Build
 
@@ -36,7 +36,7 @@ The Android build requires JDK 17, Android SDK Platform 35, NDK 24.0.8215888, an
 upstream/app/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-GitHub Actions builds and validates the debug APK, then uploads it as the **WinCore-0.6.0-debug** artifact.
+GitHub Actions builds and validates the debug APK, then uploads it as the **WinCore-0.7.0-debug** artifact.
 
 ## Upstream and licensing
 

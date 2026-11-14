@@ -15,8 +15,8 @@ jobs:
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-      WINCORE_VERSION: 0.6.0
-      WINCORE_VERSION_CODE: 600
+      WINCORE_VERSION: 0.7.0
+      WINCORE_VERSION_CODE: 700
     steps:
       - name: Checkout WinCore and upstream submodules
         uses: actions/checkout@v4
@@ -44,10 +44,10 @@ jobs:
             "ndk;24.0.8215888" \
             "cmake;3.22.1"
 
-      - name: Apply WinCore branding and container compatibility checks
+      - name: Apply WinCore branding and extended container validation
         run: bash scripts/apply-wincore-patch.sh upstream "$WINCORE_VERSION"
 
-      - name: Verify diagnostics and container checks
+      - name: Verify diagnostics and extended container checks
         run: |
           grep -q 'BTRefreshWinCoreDiagnostics' upstream/app/app/src/main/res/layout/settings_fragment.xml
           grep -q 'BTShareWinCoreDiagnostics' upstream/app/app/src/main/res/layout/settings_fragment.xml
@@ -60,7 +60,10 @@ jobs:
           grep -q 'buildWinCoreContainerAudit' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           grep -q 'drive_c/windows' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           grep -q 'Box64PresetManager.getPreset' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
-          grep -q 'WinCore 0.6.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'Display resolution:' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'Environment variables:' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'Drive mappings:' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'WinCore 0.7.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
 
       - name: Build debug APK
         working-directory: upstream/app
@@ -83,7 +86,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: WinCore-0.6.0-debug
-          path: dist/WinCore-0.6.0-debug.apk
+          name: WinCore-0.7.0-debug
+          path: dist/WinCore-0.7.0-debug.apk
           if-no-files-found: error
           retention-days: 14

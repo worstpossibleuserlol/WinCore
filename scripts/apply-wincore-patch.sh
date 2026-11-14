@@ -432,6 +432,84 @@ container_audit_methods = r"""    private String buildWinCoreContainerAudit(Cont
             if (!prefixReady) issues.add("Wine prefix folder is missing");
             else if (!windowsDirectoryReady) issues.add("Windows system folder is missing");
 
+            String screenSize = container.getScreenSize();
+            boolean screenSizeReady = screenSize != null &&
+                screenSize.matches("[1-9][0-9]{2,4}x[1-9][0-9]{2,4}");
+            if (!screenSizeReady) issues.add("display resolution is malformed");
+
+            String rawEnvVars = container.getEnvVars();
+            java.util.ArrayList<String> envTokens = new java.util.ArrayList<>();
+            StringBuilder envToken = new StringBuilder();
+            boolean envEscape = false;
+            if (rawEnvVars != null) {
+                for (int charIndex = 0; charIndex < rawEnvVars.length(); charIndex++) {
+                    char character = rawEnvVars.charAt(charIndex);
+                    if (envEscape) {
+                        envToken.append('\\').append(character);
+                        envEscape = false;
+                    }
+                    else if (character == '\\') {
+                        envEscape = true;
+                    }
+                    else if (Character.isWhitespace(character)) {
+                        if (envToken.length() > 0) {
+                            envTokens.add(envToken.toString());
+                            envToken.setLength(0);
+                        }
+                    }
+                    else {
+                        envToken.append(character);
+                    }
+                }
+            }
+            if (envEscape) envToken.append('\\');
+            if (envToken.length() > 0) envTokens.add(envToken.toString());
+
+            java.util.HashSet<String> envNames = new java.util.HashSet<>();
+            int validEnvCount = 0;
+            boolean envVarsReady = true;
+            for (String entry : envTokens) {
+                int separator = entry.indexOf('=');
+                if (separator <= 0) {
+                    envVarsReady = false;
+                    continue;
+                }
+                String variableName = entry.substring(0, separator);
+                if (!variableName.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+                    envVarsReady = false;
+                    continue;
+                }
+                if (!envNames.add(variableName)) envVarsReady = false;
+                validEnvCount++;
+            }
+            if (!envVarsReady) issues.add("environment variables contain malformed or duplicate entries");
+
+            String rawDrives = container.getDrives();
+            java.util.HashSet<String> driveLetters = new java.util.HashSet<>();
+            java.util.regex.Matcher driveMatcher = java.util.regex.Pattern
+                .compile("([A-Za-z]):(.*?)(?=[A-Za-z]:|$)")
+                .matcher(rawDrives != null ? rawDrives.trim() : "");
+            int driveCursor = 0;
+            boolean drivesReady = rawDrives != null && !rawDrives.trim().isEmpty();
+            while (drivesReady && driveMatcher.find()) {
+                if (driveMatcher.start() != driveCursor) {
+                    drivesReady = false;
+                    break;
+                }
+                String driveLetter = driveMatcher.group(1).toUpperCase(java.util.Locale.US);
+                String hostPath = driveMatcher.group(2);
+                if (hostPath.isEmpty() || !new File(hostPath).isAbsolute() ||
+                    !driveLetters.add(driveLetter)) {
+                    drivesReady = false;
+                    break;
+                }
+                driveCursor = driveMatcher.end();
+            }
+            if (driveCursor == 0 || driveCursor != (rawDrives != null ? rawDrives.trim().length() : 0)) {
+                drivesReady = false;
+            }
+            if (!drivesReady) issues.add("drive mappings contain an invalid letter or host path");
+
             String wineIdentifier = container.getWineVersion();
             File wineBinary;
             if (com.winlator.core.WineInfo.isMainWineVersion(wineIdentifier)) {
@@ -488,6 +566,16 @@ container_audit_methods = r"""    private String buildWinCoreContainerAudit(Cont
 
             report.append("\n").append(container.getName()).append(": ")
                 .append(issues.isEmpty() ? "No structural issues found" : "Review needed")
+                .append("\n");
+            report.append("  Display resolution: ").append(screenSize != null ? screenSize : "Unknown")
+                .append(screenSizeReady ? " (valid format)" : " (review setting)")
+                .append("\n");
+            report.append("  Environment variables: ").append(validEnvCount).append(" entries")
+                .append(envVarsReady ? " (valid format)" : " (review entries)")
+                .append("\n");
+            report.append("  Drive mappings: ")
+                .append(driveLetters.isEmpty() ? "None" : String.join(", ", driveLetters))
+                .append(drivesReady ? " (valid format)" : " (review mappings)")
                 .append("\n");
             report.append("  Container folder/config: ")
                 .append(containerDirectoryReady && configReady ? "OK" : "Check")
