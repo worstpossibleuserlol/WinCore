@@ -138,15 +138,33 @@ diagnostics_layout = """            <FrameLayout
                         android:textIsSelectable="true"
                         android:textSize="12sp" />
 
-                    <Button
-                        android:id="@+id/BTCopyWinCoreDiagnostics"
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="@string/copy_diagnostics" />
-                </LinearLayout>
+                        android:orientation="horizontal">
 
-                <TextView
+                        <Button
+                            android:id="@+id/BTRefreshWinCoreDiagnostics"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/refresh_diagnostics" />
+
+                        <Button
+                            android:id="@+id/BTCopyWinCoreDiagnostics"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                     new_strings = """    <string name="wincore_device_diagnostics">WinCore Device Diagnostics</string>
+    <string name="wincore_diagnostics_description">Refresh local readings or share a compatibility report using Android's share menu.</string>
+    <string name="copy_diagnostics">Copy Report</string>
+    <string name="refresh_diagnostics">Refresh</string>
+    <string name="share_diagnostics">Share Report</string>
+    <string name="wincore_diagnostics_copied">Diagnostics copied</string>
+    <string name="wincore_diagnostics_unavailable">Clipboard is unavailable</string>
+    <string name="wincore_share_report_title">Share WinCore compatibility report</string>
+"""          <TextView
                     style="@style/FieldSetLabel"
                     android:text="@string/wincore_device_diagnostics" />
             </FrameLayout>
@@ -173,32 +191,14 @@ if 'name="wincore_device_diagnostics"' not in strings_source:
     if strings_source.count(anchor) != 1:
         raise SystemExit(f"Could not find the resources root in {strings_path}.")
     strings_source = strings_source.replace(anchor, anchor + new_strings, 1)
-    strings_path.write_text(strings_source, encoding="utf-8")
-
-# Add imports only when missing, keeping the patch repeatable.
-java_path = app / "src/main/java/com/winlator/SettingsFragment.java"
-java_source = java_path.read_text(encoding="utf-8")
-imports = [
-    ("import android.app.Activity;\n", "import android.app.ActivityManager;\n"),
-    ("import android.content.Context;\n", "import android.content.ClipData;\nimport android.content.ClipboardManager;\n"),
-]
-for anchor, addition in imports:
-    if addition.splitlines()[0] not in java_source:
-        if java_source.count(anchor) != 1:
-            raise SystemExit(f"Could not safely add a required import to {java_path}.")
-        java_source = java_source.replace(anchor, anchor + addition, 1)
-
-diagnostics_binding = "        configureWinCoreDiagnostics(view, context);\n"
-binding_anchor = "        preferences = PreferenceManager.getDefaultSharedPreferences(context);\n"
-if diagnostics_binding.strip() not in java_source:
-    if java_source.count(binding_anchor) != 1:
-        raise SystemExit(f"Could not find the Settings initialization anchor in {java_path}.")
-    java_source = java_source.replace(binding_anchor, binding_anchor + diagnostics_binding, 1)
-
-diagnostics_methods = """    private void configureWinCoreDiagnostics(View view, Context context) {
+    strindiagnostics_methods = """    private void configureWinCoreDiagnostics(View view, Context context) {
         final TextView reportView = view.findViewById(R.id.TVWinCoreDiagnostics);
         if (reportView == null) return;
+
         reportView.setText(buildWinCoreDiagnostics(context));
+
+        view.findViewById(R.id.BTRefreshWinCoreDiagnostics).setOnClickListener((v) ->
+            reportView.setText(buildWinCoreDiagnostics(context)));
 
         view.findViewById(R.id.BTCopyWinCoreDiagnostics).setOnClickListener((v) -> {
             ClipboardManager clipboard = (ClipboardManager)context.getSystemService(Context.CLIPBOARD_SERVICE);
@@ -211,6 +211,17 @@ diagnostics_methods = """    private void configureWinCoreDiagnostics(View view,
                 reportView.getText().toString()
             ));
             AppUtils.showToast(context, R.string.wincore_diagnostics_copied);
+        });
+
+        view.findViewById(R.id.BTShareWinCoreDiagnostics).setOnClickListener((v) -> {
+            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+            shareIntent.setType("text/plain");
+            shareIntent.putExtra(Intent.EXTRA_SUBJECT, "WinCore compatibility report");
+            shareIntent.putExtra(Intent.EXTRA_TEXT, reportView.getText().toString());
+            context.startActivity(Intent.createChooser(
+                shareIntent,
+                context.getString(R.string.wincore_share_report_title)
+            ));
         });
     }
 
@@ -256,12 +267,50 @@ diagnostics_methods = """    private void configureWinCoreDiagnostics(View view,
         String vulkanHardwareLevel = vulkanLevel >= 0 ?
             "Level " + vulkanLevel : "Not advertised";
 
-        return "WinCore 0.3.0 compatibility report\\n" +
+        String processBitness = android.os.Process.is64Bit() ? "64-bit" : "32-bit";
+        int memoryClassMb = activityManager != null ? activityManager.getMemoryClass() : 0;
+        int largeMemoryClassMb = activityManager != null ? activityManager.getLargeMemoryClass() : 0;
+
+        return "WinCore 0.4.0 compatibility report\\n" +
             "Device: " + Build.MANUFACTURER + " " + Build.MODEL + "\\n" +
             "Android: " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")\\n" +
             "SoC / hardware: " + socModel + "\\n" +
+            "App process: " + processBitness + "\\n" +
             "CPU cores: " + Runtime.getRuntime().availableProcessors() + "\\n" +
             "Supported ABIs: " + supportedAbis + "\\n" +
+            "RAM: " + totalMemory + " total, " + availableMemory + " available\\n" +
+            "App memory class: " + memoryClassMb + " MB\\n" +
+            "Large app memory class: " + largeMemoryClassMb + " MB\\n" +
+            "OpenGL ES: " + openGLES + "\\n" +
+            "Vulkan: " + vulkanSupport + "\\n" +
+            "Vulkan API: " + vulkanVersion + "\\n" +
+            "Vulkan hardware level: " + vulkanHardwareLevel;
+    }
+
+    private int findWinCoreFeatureVersion(Context context, String featureName) {
+        android.content.pm.FeatureInfo[] features =
+            context.getPackageManager().getSystemAvailableFeatures();
+        if (features == null) return -1;
+
+        for (android.content.pm.FeatureInfo feature : features) {
+            if (featureName.equals(feature.name)) return feature.version;
+        }
+        return -1;
+    }
+
+    private String formatWinCoreVulkanVersion(int version) {
+        int major = (version >>> 22) & 0x7F;
+        int minor = (version >>> 12) & 0x3FF;
+        int patch = version & 0xFFF;
+        return String.format(java.util.Locale.US, "%d.%d.%d", major, minor, patch);
+    }
+
+    private String formatWinCoreMemory(long bytes) {
+        return String.format(java.util.Locale.US, "%.1f GB",
+            bytes / (1024.0 * 1024.0 * 1024.0));
+    }
+
+""" ABIs: " + supportedAbis + "\\n" +
             "RAM: " + totalMemory + " total, " + availableMemory + " available\\n" +
             "OpenGL ES: " + openGLES + "\\n" +
             "Vulkan: " + vulkanSupport + "\\n" +

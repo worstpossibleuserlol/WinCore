@@ -2,19 +2,20 @@
 
 WinCore is an independent community modification of [Winlator](https://github.com/brunodev85/winlator), an Android compatibility environment for running Windows applications and games with Wine and Box86/Box64.
 
-## Version 0.3.0 — graphics capability diagnostics
+## Version 0.4.0 — diagnostics refresh and sharing
 
-This release keeps the original Winlator interface and container workflow while extending the WinCore compatibility report.
+This release keeps the original Winlator interface and extends WinCore's compatibility report workflow.
 
 - Keeps the Winlator containers, shortcuts, settings, and controller UI.
 - Uses the separate Android application ID `com.wincore`.
-- Adds local Vulkan capability information to the Settings diagnostics panel.
-- Reports Android-advertised Vulkan API version and Vulkan hardware feature level when present.
-- Retains the device, Android, SoC/hardware, CPU-core, ABI, RAM, and OpenGL ES information from 0.2.0.
-- Keeps the **Copy Report** action local; WinCore does not upload the report.
-- Sets Android versionName to **0.3.0** and versionCode to **300**.
+- Adds **Refresh** to update live RAM readings and regenerate the device report.
+- Adds **Share Report** using Android's native share sheet. The user chooses whether to share the text and which app receives it.
+- Retains **Copy Report**.
+- Adds app-process bitness and Android app memory-class information.
+- Retains device, Android, SoC/hardware, CPU-core, ABI, RAM, OpenGL ES, and Android-advertised Vulkan details.
+- Sets Android versionName to **0.4.0** and versionCode to **400**.
 
-The Vulkan values come from Android's advertised system feature declarations. They are useful compatibility clues, not a Vulkan runtime test, GPU benchmark, proof of driver quality, or guarantee that a Windows game will run. The actual graphics driver and Winlator translation path still need application-level testing. No performance uplift or game compatibility guarantee is claimed.
+Reports are generated locally. WinCore does not upload them. Sharing is user-initiated through Android's share menu. Memory-class values are Android limits/allowances for the app process, not a measurement of free physical RAM or a guarantee of game performance. Vulkan values are Android-advertised features, not a runtime graphics test.
 
 ## Build
 
@@ -34,7 +35,7 @@ The Android build requires JDK 17, Android SDK Platform 35, NDK 24.0.8215888, an
 upstream/app/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-GitHub Actions builds and validates the debug APK, then uploads it as the **WinCore-0.3.0-debug** artifact.
+GitHub Actions builds and validates the debug APK, then uploads it as the **WinCore-0.4.0-debug** artifact.
 
 ## Upstream and licensing
 
