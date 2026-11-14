@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.0 — Mapped drive availability checks
+
+- Extended the read-only container audit to check whether each mapped host path exists and is readable at audit time.
+- Reports drive letters and path status without exposing full host storage paths.
+- Distinguishes directory and file mappings.
+- Retains saved display resolution, environment-variable, drive syntax, RootFS, container folder/config, Wine prefix, selected Wine binary, Box64 preset, graphics renderer, and DirectX wrapper checks.
+- Does not grant permissions, mount drives, alter settings, or modify files.
+- Updated Android versionName to 0.8.0 and versionCode to 800.
+- Updated CI to verify mapped-drive availability reporting and build the 0.8.0 ARM64 debug APK.
+
+### Scope and limitations
+
+- Path readability is a point-in-time filesystem check, not a guarantee that Wine can use the path.
+- Android scoped-storage rules and removable-storage availability may affect later access.
+- No performance or game-compatibility claims are made.
+
 ## 0.7.0 — Extended container validation
 
 - Added display-resolution format validation to the read-only container audit.

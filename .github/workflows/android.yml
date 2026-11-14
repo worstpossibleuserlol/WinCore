@@ -15,8 +15,8 @@ jobs:
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-      WINCORE_VERSION: 0.7.0
-      WINCORE_VERSION_CODE: 700
+      WINCORE_VERSION: 0.8.0
+      WINCORE_VERSION_CODE: 800
     steps:
       - name: Checkout WinCore and upstream submodules
         uses: actions/checkout@v4
@@ -63,7 +63,8 @@ jobs:
           grep -q 'Display resolution:' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           grep -q 'Environment variables:' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           grep -q 'Drive mappings:' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
-          grep -q 'WinCore 0.7.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'Mapped drive availability:' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'WinCore 0.8.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
 
       - name: Build debug APK
         working-directory: upstream/app
@@ -86,7 +87,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: WinCore-0.7.0-debug
-          path: dist/WinCore-0.7.0-debug.apk
+          name: WinCore-0.8.0-debug
+          path: dist/WinCore-0.8.0-debug.apk
           if-no-files-found: error
           retention-days: 14

@@ -486,6 +486,7 @@ container_audit_methods = r"""    private String buildWinCoreContainerAudit(Cont
 
             String rawDrives = container.getDrives();
             java.util.HashSet<String> driveLetters = new java.util.HashSet<>();
+            java.util.LinkedHashMap<String, String> driveStatuses = new java.util.LinkedHashMap<>();
             java.util.regex.Matcher driveMatcher = java.util.regex.Pattern
                 .compile("([A-Za-z]):(.*?)(?=[A-Za-z]:|$)")
                 .matcher(rawDrives != null ? rawDrives.trim() : "");
@@ -502,6 +503,14 @@ container_audit_methods = r"""    private String buildWinCoreContainerAudit(Cont
                     !driveLetters.add(driveLetter)) {
                     drivesReady = false;
                     break;
+                }
+                File mappedPath = new File(hostPath);
+                String pathStatus = !mappedPath.exists() ? "not found" :
+                    (!mappedPath.canRead() ? "not readable" :
+                    (mappedPath.isDirectory() ? "directory readable" : "file readable"));
+                driveStatuses.put(driveLetter, pathStatus);
+                if (!mappedPath.exists() || !mappedPath.canRead()) {
+                    issues.add("mapped drive " + driveLetter + ": host path is unavailable");
                 }
                 driveCursor = driveMatcher.end();
             }
@@ -576,6 +585,16 @@ container_audit_methods = r"""    private String buildWinCoreContainerAudit(Cont
             report.append("  Drive mappings: ")
                 .append(driveLetters.isEmpty() ? "None" : String.join(", ", driveLetters))
                 .append(drivesReady ? " (valid format)" : " (review mappings)")
+                .append("\n");
+            for (java.util.Map.Entry<String, String> driveStatus : driveStatuses.entrySet()) {
+                report.append("    ").append(driveStatus.getKey()).append(": ")
+                    .append(driveStatus.getValue()).append("\n");
+            }
+            report.append("  Mapped drive availability: ")
+                .append(driveStatuses.isEmpty() ? "No mappings checked" :
+                    (driveStatuses.values().stream().allMatch(status ->
+                        status.equals("directory readable") || status.equals("file readable")) ?
+                        "All mapped paths readable" : "One or more paths need review"))
                 .append("\n");
             report.append("  Container folder/config: ")
                 .append(containerDirectoryReady && configReady ? "OK" : "Check")
