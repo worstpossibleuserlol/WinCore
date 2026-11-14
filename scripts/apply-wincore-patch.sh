@@ -184,7 +184,7 @@ insert_once(
 strings_path = resource_root / "values" / "strings.xml"
 strings_source = strings_path.read_text(encoding="utf-8")
 new_strings = """    <string name="wincore_device_diagnostics">WinCore Device Diagnostics</string>
-    <string name="wincore_diagnostics_description">Refresh local readings or share a compatibility report using Android's share menu.</string>
+    <string name="wincore_diagnostics_description">Refresh local readings or use the Android share menu to share a report.</string>
     <string name="copy_diagnostics">Copy Report</string>
     <string name="refresh_diagnostics">Refresh</string>
     <string name="share_diagnostics">Share Report</string>
