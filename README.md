@@ -2,16 +2,22 @@
 
 WinCore is an independent community modification of [Winlator](https://github.com/brunodev85/winlator), an Android compatibility environment for running Windows applications and games with Wine and Box86/Box64.
 
-## Version 0.9.0 — container audit summary
+## Version 1.0.0 — first stable release
 
-This release adds a concise summary above the existing per-container compatibility findings.
+WinCore 1.0.0 consolidates the existing diagnostics and hardens container auditing so a single malformed saved container does not prevent the remaining containers from being checked.
 
-- Reports how many containers were checked, how many had no structural issues, how many need review, and the total number of findings.
-- Keeps all existing 0.8.0 mapped-drive availability checks and earlier diagnostics.
-- The summary is derived from the same read-only audit output; it does not change container settings or files.
-- Sets Android versionName to **0.9.0** and versionCode to **900**.
+- Isolates each container audit with its own error boundary and reports a review finding if that entry cannot be checked safely.
+- Handles an unavailable RootFS object without crashing the audit.
+- Retains the 0.9.0 aggregate audit summary and all earlier device, storage, graphics-capability, configuration, and mapped-drive checks.
+- Keeps the audit read-only. It does not repair, rewrite, delete, or change containers, settings, environment variables, or drive mappings.
+- Sets Android versionName to **1.0.0** and versionCode to **10000**.
 
-The summary counts structural findings only. It does not measure game compatibility, launch success, frame rate, or renderer performance.
+The stable milestone does not claim that a container can launch a particular game, that a renderer initializes, or that performance is improved. A successful APK build confirms compilation and package integrity, not on-device game compatibility.
+
+## Previous version: 0.9.0 — container audit summary
+
+- Added a summary of containers checked, containers with no structural findings, containers needing review, and total findings.
+- Retained the read-only per-container report and mapped-drive availability checks.
 
 ## Previous version: 0.8.0 — mapped drive availability checks
 
@@ -49,7 +55,7 @@ The Android build requires JDK 17, Android SDK Platform 35, NDK 24.0.8215888, an
 upstream/app/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-GitHub Actions builds and validates the debug APK, then uploads it as the **WinCore-0.9.0-debug** artifact.
+GitHub Actions builds and validates the debug APK, then uploads it as the **WinCore-1.0.0-debug** artifact.
 
 ## Upstream and licensing
 

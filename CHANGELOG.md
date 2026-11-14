@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.0 — First stable release
+
+- Hardened container auditing with per-container exception isolation.
+- If an individual saved container cannot be inspected safely, the report records a review finding and continues with the remaining entries.
+- Handled a missing RootFS object without failing before the container scan.
+- Retained the 0.9.0 audit summary and all earlier diagnostics.
+- Kept every diagnostic and compatibility check read-only.
+- Updated Android versionName to 1.0.0 and versionCode to 10000.
+- Updated CI to verify the hardened audit and build the 1.0.0 ARM64 debug APK.
+
+### Scope and limitations
+
+- These are structural checks, not game launch tests, renderer initialization tests, or performance benchmarks.
+- No automatic repair, tuning, or compatibility guarantee is included.
+
+
 ## 0.9.0 — Container audit summary
 
 - Added an aggregate summary to the Check Containers report.

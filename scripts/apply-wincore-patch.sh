@@ -397,7 +397,7 @@ container_audit_methods = r"""    private String buildWinCoreContainerAudit(Cont
         report.append("This checks saved configuration and required files only; it does not certify game compatibility.\n");
 
         com.winlator.xenvironment.RootFS rootFS = com.winlator.xenvironment.RootFS.find(context);
-        boolean rootFSReady = rootFS.isValid();
+        boolean rootFSReady = rootFS != null && rootFS.isValid();
         report.append("RootFS: ").append(rootFSReady ? "Ready" : "Missing or incomplete").append("\n");
 
         final java.util.ArrayList<com.winlator.container.Container> containers;
@@ -416,6 +416,7 @@ container_audit_methods = r"""    private String buildWinCoreContainerAudit(Cont
         }
 
         for (com.winlator.container.Container container : containers) {
+            try {
             java.util.ArrayList<String> issues = new java.util.ArrayList<>();
             File containerDir = container.getRootDir();
             boolean containerDirectoryReady = containerDir != null && containerDir.isDirectory();
@@ -622,6 +623,12 @@ container_audit_methods = r"""    private String buildWinCoreContainerAudit(Cont
             if (!issues.isEmpty()) {
                 report.append("  Findings:\n");
                 for (String issue : issues) report.append("  - ").append(issue).append("\n");
+            }
+            }
+            catch (RuntimeException exception) {
+                report.append("\nContainer entry: Review needed\n");
+                report.append("  Findings:\n");
+                report.append("  - audit could not complete safely; saved data may be malformed\n");
             }
         }
 
