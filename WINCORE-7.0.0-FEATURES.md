@@ -62,7 +62,7 @@ This is the 50-feature list proposed for WinCore 7.0.0. Status is explicit: a fe
 
 ## Branding correction
 
-The exact user-supplied `assets/branding/WinCore To Replace WinLator Logo.png` file is installed as the navigation drawer's `drawable/logo.png`, not as the launcher icon. CI compares the copied image byte-for-byte with the supplied file.
+The exact user-supplied `assets/branding/wincorebanner.png` file is installed as the navigation drawer's `drawable/logo.png`, not as the launcher icon. CI compares the copied image byte-for-byte with the supplied file. The launcher artwork comes only from `assets/branding/old-launcher-icon.png`.
 
 ## Verification still required
 
