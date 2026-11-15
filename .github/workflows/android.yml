@@ -76,7 +76,7 @@ jobs:
           grep -q 'WinCoreAppearance.apply' upstream/app/app/src/main/java/com/winlator/MainActivity.java
           grep -q 'wincore_ui_accent' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           grep -q 'wincore_ui_density' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
-          grep -q 'WinCore 3.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'WinCore 4.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCoreDeviceProfile.java
           grep -q 'setWinCoreDeviceProfile(selectedWinCoreProfile)' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
           grep -q 'wincore_cpu_profile' upstream/app/app/src/main/java/com/winlator/ContainerDetailFragment.java
@@ -88,7 +88,7 @@ jobs:
           grep -q 'Battery temperature:' upstream/app/app/src/main/java/com/winlator/WinCorePerformanceOverlay.java
           grep -q 'BTWinCoreShareProfile' upstream/app/app/src/main/res/layout/settings_fragment.xml
           grep -q 'wincore-profile-v1' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
-          grep -q 'WinCore 3.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'WinCore 4.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCoreProfileControls.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCorePerformanceOverlay.java
 
