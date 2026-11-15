@@ -1,5 +1,6 @@
 package com.winlator;
 
+import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
@@ -787,7 +788,7 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
         new Thread(() -> {
             StringBuilder filtered = new StringBuilder();
             try {
-                Process process = new ProcessBuilder("logcat", "-d", "-v", "time", "-t", "1200").redirectErrorStream(true).start();
+                java.lang.Process process = new ProcessBuilder("logcat", "-d", "-v", "time", "-t", "1200").redirectErrorStream(true).start();
                 byte[] raw = readBounded(process.getInputStream(), 512 * 1024);
                 process.waitFor();
                 String all = new String(raw, StandardCharsets.UTF_8);
