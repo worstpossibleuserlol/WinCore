@@ -1,6 +1,24 @@
 # Changelog
 
-## 4.0.0 — Compatibility Center
+## 5.0.0 — Compatibility Suite and supplied WinCore branding
+
+- Added 50 numbered Compatibility Center actions spanning executable/game detection, profile matching, Wine/Box64 and graphics advice, RAM/CPU/thermal snapshots, GTA IV diagnostics, Android controller/audio output inspection, log filtering, missing-DLL pattern detection, folder checks, profile history, backup guidance, and compatibility summaries.
+- Added advisory profile matching, Wine/Box64 recommendations, resolution guidance, custom log phrase rules, and a local compatibility database.
+- Added GTA IV profile setup and checks for executable, component and save-data filename clues. These inspect files and logs only; they do not launch GTA IV or guarantee compatibility.
+- Added per-game controller/audio-device and launch-readiness diagnostics using Android-exposed information.
+- Installed the exact supplied green four-panel image as the app icon and logo across all five mipmap density folders, adaptive icon resources, app logo resources, and upstream logo files.
+- Added CI checks for all 50 Compatibility Center entries and byte-for-byte identity of every installed icon/logo with the canonical asset.
+- Set Android versionName to 5.0.0 and versionCode to 50000.
+
+### Verification limits
+
+- This release adds compatibility inspection and advisory tools; it does not change the underlying Wine/Box64/graphics engine or silently apply profile recommendations.
+- Frame-pacing/FPS measurement is not available from this integration. CPU timing is for the WinCore Android app process, not isolated game CPU utilization.
+- Android device/audio/controller and folder-presence checks do not prove that a Windows game uses those devices or that its files are valid.
+- Preferences backup and migration guidance do not copy RootFS, complete containers, Wine prefixes, or game data.
+- Physical-device testing and game-runtime testing are not claimed by CI.
+
+## 4.0.0 — Compatibility Center (retained)
 
 - Added a Compatibility Center for executable inspection, per-game diagnostic profiles, GTA IV checks, profile history, import/export, preference backup/restore, conflict checks, launch-readiness checks, and compatibility reports.
 - Added advisory Box64 and graphics-wrapper recommendations without silently changing Winlator runtime settings.

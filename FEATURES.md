@@ -1,6 +1,6 @@
-# WinCore 4.0.0 — compatibility feature register
+# WinCore 4.0.0 — compatibility feature register (retained)
 
-WinCore 4.0.0 adds a diagnostic Compatibility Center. The features below are implemented as inspection, record-keeping, backup, and recommendation tools. They do not patch game binaries, install graphics drivers, or guarantee that a game will launch.
+WinCore 4.0.0 added a diagnostic Compatibility Center. WinCore 5.0.0 extends it with the 50 numbered actions below. The features below are implemented as inspection, record-keeping, backup, and recommendation tools. They do not patch game binaries, install graphics drivers, or guarantee that a game will launch.
 
 ## Compatibility Center capabilities (1–50)
 
@@ -197,3 +197,83 @@ This register counts capabilities that are implemented in WinCore 3.0.0 or alrea
 ## Verification scope
 
 The CI build checks source patch application, selected feature markers, APK compilation, package ID/version, APK archive integrity, and ARM64 library presence. It does not run games, benchmark performance, validate a GPU driver on physical hardware, or prove GTA IV compatibility. The live monitor is an Android app-process/system monitor, not a game-engine profiler.
+
+---
+
+# WinCore 5.0.0 — 50 Compatibility Center actions
+
+The following numbered actions are exposed in the WinCore 5.0.0 Compatibility Center. Some reuse existing 4.0.0 diagnostics or profile tools; they are not 50 independent changes to the Winlator runtime.
+
+## Game compatibility engine
+
+1. **Automatic Game Detection** — enumerate executable filenames in a selected game folder (bounded folder scan).
+2. **Executable Analyzer** — inspect DOS/PE headers, architecture, sections and imports.
+3. **Per-Game Profile Manager** — save settings and diagnostic notes per game.
+4. **Local Compatibility Database** — list locally saved game profiles and user ratings.
+5. **Automatic Profile Matching** — suggest a diagnostic profile from the game name and static API indicators.
+6. **Wine Version Advisor** — provide manual guidance for comparing Wine builds already installed in a container.
+7. **Box64 Preset Advisor** — suggest a starting preset from exposed CPU count and current RAM pressure.
+8. **DirectX Requirement Detection** — inspect static imported Direct3D DLL names.
+9. **Graphics Wrapper Checker** — suggest investigating DXVK, WineD3D or VKD3D based on static indicators and Android Vulkan metadata.
+10. **Launch Argument Manager** — save and inspect per-game launch-argument notes.
+
+## Performance and resource management
+
+11. **RAM Pressure Monitor** — report Android available and total system memory.
+12. **Low-Memory Warning System** — flag Android low-memory state or low available RAM.
+13. **CPU Load Snapshot** — estimate WinCore app-process CPU time over the sample interval.
+14. **Thermal Awareness** — show Android thermal status where exposed.
+15. **Battery Performance Advice** — display battery level and battery temperature when exposed.
+16. **Background Process Awareness** — count other processes visible to Android; this list may be restricted.
+17. **Per-Game Performance Preferences** — store profile-specific Box64, wrapper and notes.
+18. **Resolution Advisor** — provide conservative starting-resolution guidance; does not change game settings.
+19. **Frame-Pacing Diagnostics Status** — explicitly report that reliable per-game frame-time data is unavailable.
+20. **Session Performance Report** — display existing XServer session elapsed time, Android app-process CPU time/PSS and system RAM snapshots.
+
+## GTA IV diagnostics
+
+21. **GTA IV Dedicated Profile** — create a named GTA IV diagnostic profile.
+22. **GTA IV Executable Detection** — look for GTA IV executable names in a selected game folder.
+23. **GTA IV DirectX 9 Check** — inspect the selected executable's Direct3D import clues and folder selection.
+24. **GTA IV Component Presence Check** — look for common GTA IV executable/component filenames.
+25. **Controller Diagnostics** — enumerate Android input devices and gamepad/joystick sources.
+26. **Audio Device Diagnostics** — enumerate Android output devices; does not test Wine or in-game playback.
+27. **GTA IV Save-Data Clue Check** — search scanned folder names for likely settings/save indicators.
+28. **GTA IV Profile Backup** — export the current profile as JSON; select the GTA IV profile before exporting it.
+29. **Crash / Failure Log Report** — capture and filter available Android logcat lines.
+30. **GTA IV Compatibility Summary** — summarize known file/API clues and safe starting-point guidance.
+
+## Diagnostics and recovery
+
+31. **Wine Log Viewer** — filter Wine-related lines from the latest captured log.
+32. **Box64 Log Viewer** — filter Box64/Box86-related lines from the latest captured log.
+33. **Missing DLL Log Detector** — find missing-library patterns in captured logs.
+34. **Graphics Initialization Diagnostics** — show graphics, D3D, DXVK, VKD3D and Vulkan log clues.
+35. **Vulkan Capability Checker** — inspect Android PackageManager Vulkan feature metadata.
+36. **Game-Folder Health Report** — count executable/library names in the bounded scan; does not validate file contents.
+37. **Configuration Conflict Detector** — inspect profile/wrapper/API and environment-variable inconsistencies.
+38. **WinCore Settings Backup** — export WinCore/Winlator preferences to JSON.
+39. **Profile Rollback** — restore the previous saved WinCore game-profile snapshot.
+40. **Diagnostic Report Export** — assemble and share a device/game/log summary.
+
+## Usability and community
+
+41. **Profile Import / Export** — exchange game profiles as JSON through Android document/share flows.
+42. **Local Shared-Profile Library** — list locally imported/saved profiles; no online community server is connected.
+43. **Profile Version History** — list stored snapshots for the selected game.
+44. **Container Backup Checklist** — explain manual full-container backup steps; JSON backup does not archive the container.
+45. **Container Migration Assistant** — guide manual data transfer and profile import; does not copy container files.
+46. **Launch History** — show completed Winlator session records.
+47. **Compatibility Rating** — save a user-entered rating in the selected game profile; not a verified community score.
+48. **Custom Compatibility Rules** — match user-entered phrases against the most recently captured logs.
+49. **Profile Comparison** — compare current form values with the prior profile snapshot.
+50. **Compatibility Dashboard** — summarize selected game, saved profile, Android resource state and session history.
+
+## 5.0.0 verification limits
+
+- Profile, Wine, Box64 and graphics suggestions are advisory. The Compatibility Center does not silently modify active Winlator settings.
+- Static PE imports and filenames are clues, not proof of a game's runtime API, file integrity or compatibility.
+- CPU snapshots, PSS, available RAM, temperature, and session timing are Android app/system measurements; they are not isolated per-game performance telemetry.
+- Whole-device CPU load, game FPS, frame pacing, GPU utilization, in-game audio playback, and actual GTA IV runtime compatibility are not claimed.
+- Android may restrict visibility into background processes, logs, and hardware features.
+- Settings/profile JSON backup does not archive RootFS, the complete container, Wine prefix, or game data.

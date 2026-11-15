@@ -15,8 +15,8 @@ jobs:
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-      WINCORE_VERSION: 4.0.0
-      WINCORE_VERSION_CODE: 40000
+      WINCORE_VERSION: 5.0.0
+      WINCORE_VERSION_CODE: 50000
     steps:
       - name: Checkout WinCore and upstream submodules
         uses: actions/checkout@v4
@@ -44,7 +44,7 @@ jobs:
             "ndk;24.0.8215888" \
             "cmake;3.22.1"
 
-      - name: Apply WinCore 3.0.0 foundation with 4.0.0 version metadata
+      - name: Apply WinCore 3.0.0 foundation with 5.0.0 version metadata
         run: bash scripts/apply-wincore-patch.sh upstream "$WINCORE_VERSION"
 
       - name: Verify WinCore 3.0.0 features and container audit
@@ -76,7 +76,7 @@ jobs:
           grep -q 'WinCoreAppearance.apply' upstream/app/app/src/main/java/com/winlator/MainActivity.java
           grep -q 'wincore_ui_accent' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           grep -q 'wincore_ui_density' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
-          grep -q 'WinCore 4.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'WinCore 5.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCoreDeviceProfile.java
           grep -q 'setWinCoreDeviceProfile(selectedWinCoreProfile)' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
           grep -q 'wincore_cpu_profile' upstream/app/app/src/main/java/com/winlator/ContainerDetailFragment.java
@@ -88,14 +88,14 @@ jobs:
           grep -q 'Battery temperature:' upstream/app/app/src/main/java/com/winlator/WinCorePerformanceOverlay.java
           grep -q 'BTWinCoreShareProfile' upstream/app/app/src/main/res/layout/settings_fragment.xml
           grep -q 'wincore-profile-v1' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
-          grep -q 'WinCore 4.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'WinCore 5.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCoreProfileControls.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCorePerformanceOverlay.java
 
-      - name: Apply WinCore 4.0.0 Compatibility Center and green branding
-        run: bash scripts/apply-wincore-4.0.0.sh
+      - name: Apply WinCore 5.0.0 Compatibility Center and green branding
+        run: bash scripts/apply-wincore-5.0.0.sh
 
-      - name: Verify WinCore 4.0.0 integration and supplied icon
+      - name: Verify WinCore 5.0.0 integration and supplied icon
         run: |
           set -euxo pipefail
           test -s upstream/app/app/src/main/java/com/winlator/WinCoreCompatibilityCenterActivity.java
@@ -108,6 +108,39 @@ jobs:
           test -s upstream/app/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
           test -s upstream/app/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
           test -s upstream/app/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
+          ACTIVITY="upstream/app/app/src/main/java/com/winlator/WinCoreCompatibilityCenterActivity.java"
+          for label in \
+            "01  Automatic game detection" "02  Executable analyzer" "03  Per-game profile manager" \
+            "04  Local compatibility database" "05  Automatic profile matching" "06  Wine version advisor" \
+            "07  Box64 preset advisor" "08  DirectX requirement detection" "09  Graphics wrapper checker" \
+            "10  Launch argument manager" "11  RAM pressure monitor" "12  Low-memory warning system" \
+            "13  CPU load snapshot" "14  Thermal awareness" "15  Battery performance recommendations" \
+            "16  Background process awareness" "17  Per-game performance preferences" "18  Resolution advisor" \
+            "19  Frame-pacing diagnostics status" "20  Session performance report" "21  GTA IV dedicated profile" \
+            "22  GTA IV executable detection" "23  GTA IV DirectX 9 check" "24  GTA IV component presence check" \
+            "25  Controller diagnostics" "26  Audio device diagnostics" "27  GTA IV save-data clue check" \
+            "28  GTA IV profile backup" "29  Crash / failure log report" "30  GTA IV compatibility summary" \
+            "31  Wine log viewer" "32  Box64 log viewer" "33  Missing DLL log detector" \
+            "34  Graphics initialization diagnostics" "35  Vulkan capability checker" \
+            "36  Selected game-folder health report" "37  Configuration conflict detector" \
+            "38  WinCore settings backup" "39  Previous profile rollback" "40  Diagnostic report export" \
+            "41  Shared profile import / export" "42  Local shared-profile library" "43  Profile version history" \
+            "44  Container backup checklist" "45  Container migration assistant" "46  Launch history" \
+            "47  Compatibility rating" "48  Custom compatibility rules" "49  Profile comparison" \
+            "50  Compatibility dashboard summary"; do
+            grep -Fq "$label" "$ACTIVITY"
+          done
+          ICON="assets/branding/wincore-user-icon.png"
+          echo "8e17c515a49fdff3700d82c1a21d4cf1728bd0e9855469e4fe346ae3198236db  $ICON" | sha256sum -c -
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            for icon_name in ic_launcher.png ic_launcher_round.png ic_launcher_foreground.png; do
+              cmp -s "$ICON" "upstream/app/app/src/main/res/mipmap-$density/$icon_name"
+            done
+          done
+          cmp -s "$ICON" upstream/app/app/src/main/res/drawable-hdpi/logo.png
+          cmp -s "$ICON" upstream/app/app/src/main/res/drawable-nodpi/wincore_logo.png
+          cmp -s "$ICON" upstream/logo.png
+          cmp -s "$ICON" upstream/app/logo.png
           grep -q 'android:roundIcon="@mipmap/ic_launcher_round"' upstream/app/app/src/main/AndroidManifest.xml
           grep -q '@mipmap/ic_launcher_foreground' upstream/app/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
 
@@ -132,7 +165,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: WinCore-4.0.0
-          path: dist/WinCore-4.0.0.apk
+          name: WinCore-5.0.0
+          path: dist/WinCore-5.0.0.apk
           if-no-files-found: error
           retention-days: 14
