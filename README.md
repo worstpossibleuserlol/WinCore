@@ -6,7 +6,7 @@
 
 WinCore is an independent community modification of [Winlator](https://github.com/brunodev85/winlator), an Android compatibility environment for running Windows applications and games with Wine and Box86/Box64.
 
-WinCore adds configurable device profiles, per-container and per-game settings, launch safety options, session monitoring, profile sharing, and a 50-action Compatibility Center for game inspection, diagnostic profiles, GTA IV checks, resource snapshots, logs, and reports while preserving the core Winlator workflow.
+WinCore extends Winlator on Android with per-container and per-game profiles, launch-safety options, session monitoring, profile sharing, and 100 Compatibility Center actions across game diagnostics, GTA IV file and log checks, graphics recommendations, device/resource monitoring, stability tools, and recovery workflows. It preserves Winlator's underlying Wine and Box86/Box64 runtime and existing container workflow.
 
 **Current version: 6.0.0**
 
