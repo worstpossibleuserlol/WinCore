@@ -49,6 +49,7 @@ jobs:
 
       - name: Verify WinCore 3.0.0 features and container audit
         run: |
+          set -euxo pipefail
           grep -q 'BTRefreshWinCoreDiagnostics' upstream/app/app/src/main/res/layout/settings_fragment.xml
           grep -q 'BTShareWinCoreDiagnostics' upstream/app/app/src/main/res/layout/settings_fragment.xml
           grep -q 'Intent.ACTION_SEND' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
