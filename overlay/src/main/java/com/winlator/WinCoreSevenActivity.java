@@ -47,6 +47,8 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -393,14 +395,20 @@ public final class WinCoreSevenActivity extends Activity {
     }
 
     private void chooseContainer() {
-        if (containers.isEmpty()) {
-            setStatus("no readable containers were found.");
+        String query = containerSearch.getText().toString().trim().toLowerCase(Locale.ROOT);
+        ArrayList<ContainerRecord> matches = new ArrayList<>();
+        for (ContainerRecord record : containers) {
+            if (query.isEmpty() || record.name.toLowerCase(Locale.ROOT).contains(query) ||
+                String.valueOf(record.id).contains(query)) matches.add(record);
+        }
+        if (matches.isEmpty()) {
+            setStatus(containers.isEmpty() ? "no readable containers were found." : "no containers matched the current search.");
             return;
         }
-        String[] names = new String[containers.size()];
-        for (int i = 0; i < containers.size(); i++) names[i] = containers.get(i).name + "  (id " + containers.get(i).id + ")";
+        String[] names = new String[matches.size()];
+        for (int i = 0; i < matches.size(); i++) names[i] = matches.get(i).name + "  (id " + matches.get(i).id + ")";
         new AlertDialog.Builder(this).setTitle("select container").setItems(names, (dialog, which) -> {
-            selected = containers.get(which);
+            selected = matches.get(which);
             updateSelectedLabel();
             preferences.edit().putString("recent_containers", addRecent(preferences.getString("recent_containers", ""), selected.id)).apply();
         }).setNegativeButton("cancel", null).show();
@@ -427,7 +435,7 @@ public final class WinCoreSevenActivity extends Activity {
                 case 1: chooseContainer(); break;
                 case 2: loadContainers(false); break;
                 case 3: showMetadataCache(); break;
-                case 4: preferences.edit().clear().apply(); loadContainers(true); setStatus("metadata and workspace caches cleared; saved container files were not changed."); break;
+                case 4: invalidateMetadataCache(); loadContainers(true); setStatus("container metadata cache invalidated; favourites, recents and workspace settings were preserved."); break;
                 case 5: setStatus("the four feature groups are created on first expansion; collapse or expand a group to load its controls lazily."); break;
                 case 6: setStatus("lazy registry copy-on-write is integrated in WineRegistryEditor: registry reads use the original file; a temporary copy is made only for edits."); break;
                 case 7: inspectRegistryAsync(); break;
@@ -480,6 +488,14 @@ public final class WinCoreSevenActivity extends Activity {
         catch (Exception error) {
             showError("Feature " + id + " failed", error);
         }
+    }
+
+    private void invalidateMetadataCache() {
+        SharedPreferences.Editor editor = preferences.edit();
+        for (String key : preferences.getAll().keySet()) {
+            if (key.startsWith("container_meta_")) editor.remove(key);
+        }
+        editor.apply();
     }
 
     private void showMetadataCache() {
@@ -537,7 +553,7 @@ public final class WinCoreSevenActivity extends Activity {
             try {
                 int id = Integer.parseInt(item);
                 ContainerRecord record = findContainer(id);
-                out.append(record != null ? record.name : "container " + id + " (not found").append("\n");
+                out.append(record != null ? record.name : "container " + id + " (not found)").append("\n");
             }
             catch (NumberFormatException ignored) { }
         }
@@ -608,17 +624,25 @@ public final class WinCoreSevenActivity extends Activity {
             progress.setIndeterminate(true);
             setStatus("creating verified backup archive…");
             io.execute(() -> {
-                try (OutputStream out = getContentResolver().openOutputStream(uri);
+                OutputStream destination = getContentResolver().openOutputStream(uri);
+                if (destination == null) {
+                    main.post(() -> { progress.setVisibility(View.GONE); setStatus("backup failed: the document provider did not open the destination."); });
+                    return;
+                }
+                try (OutputStream out = destination;
                      ZipOutputStream zip = new ZipOutputStream(new BufferedOutputStream(out))) {
-                    if (pendingBackupId == 0) {
-                        for (ContainerRecord record : new ArrayList<>(containers)) zipDirectory(record.dir, "xuser-" + record.id + "/", zip);
+                    org.json.JSONArray links = new org.json.JSONArray();
+                    if (target == 0) {
+                        for (ContainerRecord record : new ArrayList<>(containers)) zipDirectory(record.dir, "xuser-" + record.id + "/", zip, links);
                     }
                     else {
                         ContainerRecord record = findContainer(target);
                         if (record == null) throw new IOException("The selected container is no longer available.");
-                        zipDirectory(record.dir, "", zip);
+                        zipDirectory(record.dir, "", zip, links);
                     }
-                    main.post(() -> { progress.setVisibility(View.GONE); setStatus("backup completed. the ZIP includes hidden container files and the .container configuration."); });
+                    writeSymlinkManifest(zip, links);
+                    final int symlinkCount = links.length();
+                    main.post(() -> { progress.setVisibility(View.GONE); setStatus("backup completed. included hidden files, configuration and " + symlinkCount + " symbolic link(s)."); });
                 }
                 catch (Exception error) { main.post(() -> { progress.setVisibility(View.GONE); showError("Backup failed", error); }); }
             });
@@ -673,16 +697,27 @@ public final class WinCoreSevenActivity extends Activity {
         }
     }
 
-    private void zipDirectory(File root, String prefix, ZipOutputStream zip) throws IOException {
+    private void zipDirectory(File root, String prefix, ZipOutputStream zip, org.json.JSONArray links) throws IOException {
         File[] files = root.listFiles();
         if (files == null) throw new IOException("Cannot read " + root.getName());
         for (File file : files) {
-            if (Files.isSymbolicLink(file.toPath())) continue;
             String name = prefix + file.getName();
+            if (Files.isSymbolicLink(file.toPath())) {
+                JSONObject link = new JSONObject();
+                try {
+                    link.put("path", name);
+                    link.put("target", Files.readSymbolicLink(file.toPath()).toString());
+                    links.put(link);
+                }
+                catch (JSONException error) {
+                    throw new IOException("Could not record symbolic link " + name, error);
+                }
+                continue;
+            }
             if (file.isDirectory()) {
                 zip.putNextEntry(new ZipEntry(name + "/"));
                 zip.closeEntry();
-                zipDirectory(file, name + "/", zip);
+                zipDirectory(file, name + "/", zip, links);
             }
             else {
                 zip.putNextEntry(new ZipEntry(name));
@@ -696,19 +731,91 @@ public final class WinCoreSevenActivity extends Activity {
         }
     }
 
+    private void writeSymlinkManifest(ZipOutputStream zip, org.json.JSONArray links) throws IOException {
+        if (links.length() == 0) return;
+        zip.putNextEntry(new ZipEntry(".wincore-backup/symlinks.json"));
+        zip.write(links.toString().getBytes(StandardCharsets.UTF_8));
+        zip.closeEntry();
+    }
+
+    private void restoreSymlinks(File staging, org.json.JSONArray links, int targetId) throws Exception {
+        HashSet<String> linkNames = new HashSet<>();
+        for (int i = 0; i < links.length(); i++) {
+            String name = links.getJSONObject(i).getString("path").replace('\\', '/');
+            if (name.startsWith("xuser-")) {
+                String prefix = "xuser-" + targetId + "/";
+                if (!name.startsWith(prefix)) throw new IOException("Symbolic link belongs to another container.");
+                name = name.substring(prefix.length());
+            }
+            if (name.startsWith("/") || name.contains("../") || name.equals("..") || !linkNames.add(name))
+                throw new IOException("Unsafe or duplicate symbolic link path in backup.");
+        }
+        for (String name : linkNames) {
+            String parent = name;
+            while (parent.contains("/")) {
+                parent = parent.substring(0, parent.lastIndexOf('/'));
+                if (linkNames.contains(parent)) throw new IOException("A symbolic link cannot contain another archived link.");
+            }
+        }
+        for (int i = 0; i < links.length(); i++) {
+            JSONObject item = links.getJSONObject(i);
+            String relativeName = item.getString("path").replace('\\', '/');
+            if (relativeName.startsWith("xuser-" + targetId + "/"))
+                relativeName = relativeName.substring(("xuser-" + targetId + "/").length());
+            String targetText = item.getString("target");
+            if (targetText.isEmpty() || targetText.length() > 4096) throw new IOException("Invalid symbolic link target.");
+            Path normalizedRoot = staging.toPath().toAbsolutePath().normalize();
+            Path normalizedLink = new File(staging, relativeName).toPath().toAbsolutePath().normalize();
+            if (!normalizedLink.startsWith(normalizedRoot)) throw new IOException("Symbolic link path escaped the staging folder.");
+            Path targetPath = Paths.get(targetText);
+            if (!targetPath.isAbsolute()) {
+                Path resolved = normalizedLink.getParent().resolve(targetPath).normalize();
+                if (!resolved.startsWith(normalizedRoot)) throw new IOException("Relative symbolic link escapes the staging folder.");
+            }
+            else {
+                String absolute = targetPath.normalize().toString();
+                boolean allowed = absolute.equals("/") || absolute.equals("/home/xuser") ||
+                    absolute.startsWith("/home/xuser/") || absolute.equals("/tmp") ||
+                    absolute.startsWith("/tmp/") || absolute.equals("/opt") || absolute.startsWith("/opt/") ||
+                    absolute.equals("/usr") || absolute.startsWith("/usr/") ||
+                    absolute.equals("/etc") || absolute.startsWith("/etc/") ||
+                    absolute.equals("/dev") || absolute.startsWith("/dev/") ||
+                    absolute.equals("/proc") || absolute.startsWith("/proc/");
+                if (!allowed) throw new IOException("Absolute symbolic link target is outside the permitted Wine runtime paths.");
+            }
+            File parent = normalizedLink.getParent().toFile();
+            if (!parent.isDirectory() && !parent.mkdirs()) throw new IOException("Could not create symbolic link parent.");
+            if (Files.exists(normalizedLink) || Files.isSymbolicLink(normalizedLink)) throw new IOException("Symbolic link path already exists in backup.");
+            Files.createSymbolicLink(normalizedLink, targetPath);
+        }
+    }
+
     private void restoreFromUri(Uri uri, ContainerRecord record) throws Exception {
         File staging = new File(homeDir, ".restore-" + record.id + "-" + System.currentTimeMillis());
         if (!staging.mkdirs()) throw new IOException("Could not create restore staging folder.");
         long total = 0;
         int entries = 0;
-        try (InputStream in = getContentResolver().openInputStream(uri);
-             ZipInputStream zip = new ZipInputStream(new BufferedInputStream(in))) {
-            if (zip == null) throw new IOException("The selected backup could not be opened.");
+        org.json.JSONArray symlinks = new org.json.JSONArray();
+        InputStream source = getContentResolver().openInputStream(uri);
+        if (source == null) throw new IOException("The selected backup could not be opened.");
+        try (ZipInputStream zip = new ZipInputStream(new BufferedInputStream(source))) {
             ZipEntry entry;
             byte[] buffer = new byte[64 * 1024];
             while ((entry = zip.getNextEntry()) != null) {
                 if (++entries > MAX_RESTORE_ENTRIES) throw new IOException("The backup contains too many entries.");
                 String name = entry.getName().replace('\\', '/');
+                if (name.equals(".wincore-backup/symlinks.json")) {
+                    ByteArrayOutputStream manifestBytes = new ByteArrayOutputStream();
+                    int read;
+                    while ((read = zip.read(buffer)) != -1) {
+                        total += read;
+                        if (total > 1024 * 1024) throw new IOException("Symbolic link manifest exceeds 1 MiB.");
+                        manifestBytes.write(buffer, 0, read);
+                    }
+                    symlinks = new org.json.JSONArray(manifestBytes.toString("UTF-8"));
+                    zip.closeEntry();
+                    continue;
+                }
                 if (name.startsWith("/") || name.contains("../") || name.equals("..")) throw new IOException("Unsafe path in backup archive.");
                 if (name.startsWith("xuser-" + record.id + "/")) name = name.substring(("xuser-" + record.id + "/").length());
                 else if (name.startsWith("xuser-")) throw new IOException("Backup belongs to another container.");
@@ -730,6 +837,7 @@ public final class WinCoreSevenActivity extends Activity {
                 }
                 zip.closeEntry();
             }
+            restoreSymlinks(staging, symlinks, record.id);
             File stagedConfig = new File(staging, ".container");
             if (!stagedConfig.isFile()) throw new IOException("Backup does not contain a root .container file.");
             JSONObject restored = new JSONObject(readText(stagedConfig));
@@ -768,15 +876,16 @@ public final class WinCoreSevenActivity extends Activity {
                     catch (NumberFormatException ignored) { }
                 }
             }
-            File target = new File(homeDir, RootFS.USER + "-" + nextId);
+            final int newId = nextId;
+            File target = new File(homeDir, RootFS.USER + "-" + newId);
             try {
                 copyRecursively(original.dir, target);
                 File config = new File(target, ".container");
                 JSONObject json = new JSONObject(readText(config));
-                json.put("id", nextId);
+                json.put("id", newId);
                 json.put("name", original.name + " (Copy)");
                 writeAtomicNoSnapshot(config, json.toString());
-                main.post(() -> { progress.setVisibility(View.GONE); setStatus("duplicate created as container " + nextId + "."); loadContainers(true); });
+                main.post(() -> { progress.setVisibility(View.GONE); setStatus("duplicate created as container " + newId + "."); loadContainers(true); });
             }
             catch (Exception error) {
                 deleteRecursively(target);
@@ -786,7 +895,13 @@ public final class WinCoreSevenActivity extends Activity {
     }
 
     private void copyRecursively(File source, File target) throws IOException {
-        if (Files.isSymbolicLink(source.toPath())) return;
+        if (Files.isSymbolicLink(source.toPath())) {
+            Path linkTarget = Files.readSymbolicLink(source.toPath());
+            Path parent = target.toPath().getParent();
+            if (parent != null) Files.createDirectories(parent);
+            Files.createSymbolicLink(target.toPath(), linkTarget);
+            return;
+        }
         if (source.isDirectory()) {
             if (!target.mkdirs() && !target.isDirectory()) throw new IOException("Could not create " + target);
             File[] children = source.listFiles();

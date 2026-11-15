@@ -22,6 +22,7 @@ fi
 mkdir -p "$APP_MODULE/src/main/java/com/winlator"
 cp "$OVERLAY/src/main/java/com/winlator/WinCoreCompatibilityCenterActivity.java" "$APP_MODULE/src/main/java/com/winlator/"
 cp "$OVERLAY/src/main/java/com/winlator/WinCoreSessionTracker.java" "$APP_MODULE/src/main/java/com/winlator/"
+cp "$OVERLAY/src/main/java/com/winlator/WinCoreSevenActivity.java" "$APP_MODULE/src/main/java/com/winlator/"
 
 mkdir -p "$APP_MODULE/src/main/java/com/winlator/contentdialog"
 cp "$OVERLAY/src/main/java/com/winlator/contentdialog/AboutDialog.java" "$APP_MODULE/src/main/java/com/winlator/contentdialog/"
@@ -126,6 +127,13 @@ button = '''
                 android:layout_marginBottom="8dp"
                 android:text="@string/wincore_compatibility_center"
                 android:textAllCaps="false" />
+            <Button
+                android:id="@+id/BTWinCore7Workspace"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="@string/wincore_7_workspace"
+                android:textAllCaps="false" />
 '''
 replace_once(layout, anchor, anchor + button, "Settings Compatibility Center button")
 
@@ -136,12 +144,24 @@ if 'name="wincore_compatibility_center"' not in strings:
     replace_once(strings_path, marker,
         '    <string name="wincore_compatibility_center">WinCore Compatibility Center 7.0.0</string>\n' + marker,
         "Compatibility Center string")
+strings = strings_path.read_text(encoding="utf-8")
+if 'name="wincore_7_workspace"' not in strings:
+    marker = "</resources>"
+    replace_once(strings_path, marker,
+        '    <string name="wincore_7_workspace">WinCore 7.0.0 Workspace</string>\n' + marker,
+        "WinCore 7.0.0 Workspace string")
 
 # Register the new Activity in the app manifest.
 manifest = app / "src/main/AndroidManifest.xml"
 activity_anchor = '        <activity android:name="com.winlator.XServerDisplayActivity"'
 activity_decl = '''        <activity
             android:name="com.winlator.WinCoreCompatibilityCenterActivity"
+            android:theme="@style/AppThemeDark"
+            android:exported="false"
+            android:screenOrientation="sensor"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation" />
+        <activity
+            android:name="com.winlator.WinCoreSevenActivity"
             android:theme="@style/AppThemeDark"
             android:exported="false"
             android:screenOrientation="sensor"
@@ -160,6 +180,8 @@ settings_anchor = '        preferences = PreferenceManager.getDefaultSharedPrefe
 settings_addition = '''
         view.findViewById(R.id.BTWinCoreCompatibilityCenter).setOnClickListener(v ->
             startActivity(new Intent(context, WinCoreCompatibilityCenterActivity.class)));
+        view.findViewById(R.id.BTWinCore7Workspace).setOnClickListener(v ->
+            startActivity(new Intent(context, WinCoreSevenActivity.class)));
 '''
 replace_once(settings, settings_anchor, settings_anchor + settings_addition, "SettingsFragment Compatibility Center click listener")
 
@@ -392,6 +414,47 @@ w = w.replace('''    private boolean removeRegion(Location location) {
         if (!ensureClone()) return false;
         char[] buffer''',1)
 registry.write_text(w, encoding="utf-8")
+
+# Make all regular Winlator container configuration saves atomic.
+container_file = app / "src/main/java/com/winlator/container/Container.java"
+container_source = container_file.read_text(encoding="utf-8")
+container_source = container_source.replace(
+    "import com.winlator.box64.Box64Preset;",
+    "import android.util.AtomicFile;\n\nimport com.winlator.box64.Box64Preset;"
+)
+container_source = container_source.replace(
+    "import java.io.File;\n",
+    "import java.io.File;\nimport java.io.FileOutputStream;\nimport java.io.IOException;\nimport java.nio.charset.StandardCharsets;\n"
+)
+old_write = "            FileUtils.writeString(getConfigFile(), data.toString());"
+new_write = """            AtomicFile atomicFile = new AtomicFile(getConfigFile());
+            FileOutputStream output = null;
+            try {
+                output = atomicFile.startWrite();
+                output.write(data.toString().getBytes(StandardCharsets.UTF_8));
+                atomicFile.finishWrite(output);
+            }
+            catch (IOException error) {
+                if (output != null) atomicFile.failWrite(output);
+                android.util.Log.e("WinCore", "Atomic container config save failed for " + id, error);
+            }"""
+if container_source.count(old_write) != 1:
+    raise SystemExit("Container.saveData atomic-write anchor changed.")
+container_source = container_source.replace(old_write, new_write, 1)
+container_file.write_text(container_source, encoding="utf-8")
+
+# Record game launches for the WinCore 7.0.0 recent-games list.
+shortcuts = app / "src/main/java/com/winlator/ShortcutsFragment.java"
+shortcut_source = shortcuts.read_text(encoding="utf-8")
+shortcut_anchor = "        private void runFromShortcut(Shortcut shortcut) {"
+if shortcut_source.count(shortcut_anchor) != 1:
+    raise SystemExit("ShortcutsFragment launch tracking anchor changed.")
+shortcut_source = shortcut_source.replace(
+    shortcut_anchor,
+    shortcut_anchor + "\n            WinCoreSevenActivity.recordGameLaunch(getContext(), shortcut);",
+    1
+)
+shortcuts.write_text(shortcut_source, encoding="utf-8")
 PY
 
 cmp -s "$DRAWER_LOGO" "$APP_MODULE/src/main/res/drawable/logo.png"

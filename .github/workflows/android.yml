@@ -102,6 +102,7 @@ jobs:
           set -euxo pipefail
           test -s upstream/app/app/src/main/java/com/winlator/WinCoreCompatibilityCenterActivity.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCoreSessionTracker.java
+          test -s upstream/app/app/src/main/java/com/winlator/WinCoreSevenActivity.java
           test -s upstream/app/app/src/main/java/com/winlator/contentdialog/AboutDialog.java
           test -s upstream/app/app/src/main/res/layout/about_dialog.xml
           test -s upstream/app/app/src/main/res/drawable/wincore_about_logo.xml
@@ -114,6 +115,34 @@ jobs:
           grep -q 'BTWinCoreCompatibilityCenter' upstream/app/app/src/main/res/layout/settings_fragment.xml
           grep -q 'WinCoreSessionTracker.onSessionStart' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
           grep -q 'WinCoreSessionTracker.onSessionEnd' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
+          WORKSPACE="upstream/app/app/src/main/java/com/winlator/WinCoreSevenActivity.java"
+          for label in \
+            "instant container selection" "background container loading" "container metadata cache" \
+            "smart cache invalidation" "lazy tab loading" "lazy registry access" \
+            "asynchronous registry processing" "loading progress indicator" "corrupted-container isolation" \
+            "atomic configuration saving" "container search" "custom sorting" "favorite containers" \
+            "recently opened containers" "storage usage dashboard" "complete container backup" \
+            "verified container restoration" "configuration snapshots" "duplicate progress tracking" \
+            "bulk backup management" "pre-launch inspection" "missing runtime detector" \
+            "Wine prefix health check" "per-session log collection" "crash report analyzer" \
+            "safe launch mode" "custom executable arguments" "configuration comparison" \
+            "shader cache manager" "game compatibility catalogue" "controller-first navigation" \
+            "quick container actions" "game library search" "game categories" "custom game artwork" \
+            "recently played games screen" "improved contextual error messages" "accessibility improvements" \
+            "tablet layout" "advanced settings search" "automatic configuration backups" \
+            "configuration rollback" "container migration assistant" "storage cleanup assistant" \
+            "container permission repair" "upstream compatibility checker" "automated container tests" \
+            "automated UI tests" "APK regression testing" "build diagnostics report"; do
+            grep -Fq "\"$label\"" "$WORKSPACE"
+          done
+          grep -q 'BTWinCore7Workspace' upstream/app/app/src/main/res/layout/settings_fragment.xml
+          grep -q 'new Intent(context, WinCoreSevenActivity.class)' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'android:name="com.winlator.WinCoreSevenActivity"' upstream/app/app/src/main/AndroidManifest.xml
+          grep -q 'new AtomicFile(getConfigFile())' upstream/app/app/src/main/java/com/winlator/container/Container.java
+          grep -q 'WinCoreSevenActivity.recordGameLaunch' upstream/app/app/src/main/java/com/winlator/ShortcutsFragment.java
+          grep -q 'private void restoreFromUri' "$WORKSPACE"
+          grep -q 'private void restoreSymlinks' "$WORKSPACE"
+          grep -q 'AtomicFile atomic = new AtomicFile(file)' "$WORKSPACE"
           test -s upstream/app/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
           test -s upstream/app/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
           test -s upstream/app/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
