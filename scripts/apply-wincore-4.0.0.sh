@@ -130,16 +130,22 @@ start_anchor = "        ForegroundService.startSession(this);"
 replace_once(xserver, start_anchor,
     start_anchor + "\n        WinCoreSessionTracker.onSessionStart(this);",
     "XServer session start tracking")
-end_anchor = """        if (environment != null) environment.stopEnvironmentComponents();
+end_anchor = """    @Override
+    protected void onDestroy() {
+        winHandler.stop();
+        if (environment != null) environment.stopEnvironmentComponents();
         ForegroundService.stopSession(this);
         super.onDestroy();
-"""
+    }"""
 replace_once(xserver, end_anchor,
-    """        if (environment != null) environment.stopEnvironmentComponents();
+    """    @Override
+    protected void onDestroy() {
+        winHandler.stop();
+        if (environment != null) environment.stopEnvironmentComponents();
         WinCoreSessionTracker.onSessionEnd(this);
         ForegroundService.stopSession(this);
         super.onDestroy();
-""",
+    }""",
     "XServer onDestroy session tracking")
 
 print(f"WinCore {version}: Compatibility Center, session tracking, and green branding applied ({locale_count} app-name locales).")
