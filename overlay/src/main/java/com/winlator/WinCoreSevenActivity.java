@@ -42,6 +42,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -744,7 +745,7 @@ public final class WinCoreSevenActivity extends Activity {
             String name = links.getJSONObject(i).getString("path").replace('\\', '/');
             if (name.startsWith("xuser-")) {
                 String prefix = "xuser-" + targetId + "/";
-                if (!name.startsWith(prefix)) throw new IOException("Symbolic link belongs to another container.");
+                if (!name.startsWith(prefix)) continue;
                 name = name.substring(prefix.length());
             }
             if (name.startsWith("/") || name.contains("../") || name.equals("..") || !linkNames.add(name))
@@ -760,8 +761,11 @@ public final class WinCoreSevenActivity extends Activity {
         for (int i = 0; i < links.length(); i++) {
             JSONObject item = links.getJSONObject(i);
             String relativeName = item.getString("path").replace('\\', '/');
-            if (relativeName.startsWith("xuser-" + targetId + "/"))
-                relativeName = relativeName.substring(("xuser-" + targetId + "/").length());
+            if (relativeName.startsWith("xuser-")) {
+                String prefix = "xuser-" + targetId + "/";
+                if (!relativeName.startsWith(prefix)) continue;
+                relativeName = relativeName.substring(prefix.length());
+            }
             String targetText = item.getString("target");
             if (targetText.isEmpty() || targetText.length() > 4096) throw new IOException("Invalid symbolic link target.");
             Path normalizedRoot = staging.toPath().toAbsolutePath().normalize();
@@ -818,7 +822,10 @@ public final class WinCoreSevenActivity extends Activity {
                 }
                 if (name.startsWith("/") || name.contains("../") || name.equals("..")) throw new IOException("Unsafe path in backup archive.");
                 if (name.startsWith("xuser-" + record.id + "/")) name = name.substring(("xuser-" + record.id + "/").length());
-                else if (name.startsWith("xuser-")) throw new IOException("Backup belongs to another container.");
+                else if (name.startsWith("xuser-")) {
+                    zip.closeEntry();
+                    continue;
+                }
                 File output = new File(staging, name);
                 String canonicalRoot = staging.getCanonicalPath() + File.separator;
                 if (!output.getCanonicalPath().startsWith(canonicalRoot) && !output.equals(staging)) throw new IOException("Backup path escaped the staging folder.");
@@ -1108,18 +1115,21 @@ public final class WinCoreSevenActivity extends Activity {
         ContainerRecord record = requireSelected();
         if (record == null) { setStatus("select a container first."); return; }
         JSONObject json = new JSONObject(record.data.toString());
-        boolean enabled = json.optBoolean("wincoreSafeLaunch", false);
+        JSONObject extras = json.optJSONObject("extraData");
+        if (extras == null) extras = new JSONObject();
+        boolean enabled = extras.optBoolean("wincoreSafeLaunch", false);
         try {
             if (!enabled) {
-                json.put("wincorePreviousBox64Preset", json.optString("box64Preset", Box64Preset.DEFAULT));
+                extras.put("wincorePreviousBox64Preset", json.optString("box64Preset", Box64Preset.DEFAULT));
                 json.put("box64Preset", Box64Preset.STABILITY);
-                json.put("wincoreSafeLaunch", true);
+                extras.put("wincoreSafeLaunch", true);
             }
             else {
-                json.put("box64Preset", json.optString("wincorePreviousBox64Preset", Box64Preset.DEFAULT));
-                json.remove("wincorePreviousBox64Preset");
-                json.put("wincoreSafeLaunch", false);
+                json.put("box64Preset", extras.optString("wincorePreviousBox64Preset", Box64Preset.DEFAULT));
+                extras.remove("wincorePreviousBox64Preset");
+                extras.put("wincoreSafeLaunch", false);
             }
+            json.put("extraData", extras);
             saveJson(record, json);
             setStatus(enabled ? "safe launch profile disabled; previous Box64 preset restored." :
                 "safe launch profile saved using the Stability Box64 preset. it applies to the next launch of this container.");
@@ -1343,8 +1353,10 @@ public final class WinCoreSevenActivity extends Activity {
             for (ContainerRecord record : new ArrayList<>(containers)) {
                 try {
                     JSONObject json = new JSONObject(readText(record.config));
-                    if (!json.has("extraData") || json.isNull("extraData")) json.put("extraData", new JSONObject());
-                    if (!json.has("wincoreConfigSchema")) json.put("wincoreConfigSchema", 1);
+                    JSONObject extra = json.optJSONObject("extraData");
+                    if (extra == null) extra = new JSONObject();
+                    if (!extra.has("wincoreConfigSchema")) extra.put("wincoreConfigSchema", 1);
+                    json.put("extraData", extra);
                     createSnapshot(record, "before-migration");
                     writeAtomicNoSnapshot(record.config, json.toString());
                     migrated++;
