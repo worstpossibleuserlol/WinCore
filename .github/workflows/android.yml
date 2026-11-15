@@ -15,8 +15,8 @@ jobs:
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-      WINCORE_VERSION: 3.0.0
-      WINCORE_VERSION_CODE: 30000
+      WINCORE_VERSION: 4.0.0
+      WINCORE_VERSION_CODE: 40000
     steps:
       - name: Checkout WinCore and upstream submodules
         uses: actions/checkout@v4
@@ -44,7 +44,7 @@ jobs:
             "ndk;24.0.8215888" \
             "cmake;3.22.1"
 
-      - name: Apply WinCore 3.0.0 profiles, monitoring, and UI controls
+      - name: Apply WinCore 3.0.0 foundation with 4.0.0 version metadata
         run: bash scripts/apply-wincore-patch.sh upstream "$WINCORE_VERSION"
 
       - name: Verify WinCore 3.0.0 features and container audit
@@ -92,6 +92,24 @@ jobs:
           test -s upstream/app/app/src/main/java/com/winlator/WinCoreProfileControls.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCorePerformanceOverlay.java
 
+      - name: Apply WinCore 4.0.0 Compatibility Center and green branding
+        run: bash scripts/apply-wincore-4.0.0.sh
+
+      - name: Verify WinCore 4.0.0 integration and supplied icon
+        run: |
+          set -euxo pipefail
+          test -s upstream/app/app/src/main/java/com/winlator/WinCoreCompatibilityCenterActivity.java
+          test -s upstream/app/app/src/main/java/com/winlator/WinCoreSessionTracker.java
+          grep -q 'BTWinCoreCompatibilityCenter' upstream/app/app/src/main/res/layout/settings_fragment.xml
+          grep -q 'WinCoreSessionTracker.onSessionStart' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
+          grep -q 'WinCoreSessionTracker.onSessionEnd' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
+          test -s upstream/app/app/src/main/res/drawable-nodpi/wincore_logo.png
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            test -s "upstream/app/app/src/main/res/mipmap-$density/ic_launcher.png"
+            test -s "upstream/app/app/src/main/res/mipmap-$density/ic_launcher_round.png"
+            test -s "upstream/app/app/src/main/res/mipmap-$density/ic_launcher_foreground.png"
+          done
+
       - name: Build debug APK
         working-directory: upstream/app
         run: bash gradlew --no-daemon --stacktrace assembleDebug
@@ -108,12 +126,12 @@ jobs:
           grep -q "versionName='$WINCORE_VERSION'" <<< "$BADGING"
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           mkdir -p dist
-          cp "$APK" "dist/WinCore-$WINCORE_VERSION-release-debug.apk"
+          cp "$APK" "dist/WinCore-$WINCORE_VERSION.apk"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: WinCore-3.0.0-release-debug
-          path: dist/WinCore-3.0.0-release-debug.apk
+          name: WinCore-4.0.0
+          path: dist/WinCore-4.0.0.apk
           if-no-files-found: error
           retention-days: 14

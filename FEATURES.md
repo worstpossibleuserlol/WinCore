@@ -1,4 +1,72 @@
-# WinCore 3.0.0 — 100-feature implementation register
+# WinCore 4.0.0 — compatibility feature register
+
+WinCore 4.0.0 adds a diagnostic Compatibility Center. The features below are implemented as inspection, record-keeping, backup, and recommendation tools. They do not patch game binaries, install graphics drivers, or guarantee that a game will launch.
+
+## Compatibility Center capabilities (1–50)
+
+1. Windows executable selection through Android's document picker.
+2. Persistent read permission for the selected executable where the provider supports it.
+3. Executable filename and metadata display.
+4. DOS MZ header validation.
+5. PE signature validation.
+6. PE machine/architecture identification.
+7. PE optional-header inspection.
+8. PE section-table inspection.
+9. PE import-table inspection.
+10. Imported library name reporting.
+11. Bounded executable reading to limit memory use.
+12. DirectX-related import and indicator inspection.
+13. Game-folder selection through Android's document picker.
+14. Persistent game-folder permission where supported.
+15. Bounded folder-tree scanning.
+16. GTA IV / DirectX 9 diagnostic checklist.
+17. Per-game diagnostic profile form.
+18. Per-game launch-argument storage.
+19. Per-game environment-variable notes.
+20. Per-game audio and controller notes.
+21. Advisory Box64 preset selection.
+22. Advisory graphics-wrapper selection.
+23. User-entered compatibility rating.
+24. Per-game diagnostic profile persistence.
+25. Profile version snapshots.
+26. Profile version comparison.
+27. Previous-profile rollback.
+28. JSON profile export.
+29. JSON profile import.
+30. WinCore preference backup export.
+31. Preference backup restore.
+32. Profile conflict inspection.
+33. Device and launch-readiness checks.
+34. Available-memory reporting.
+35. Battery-temperature reporting when Android exposes it.
+36. Thermal-status reporting when Android exposes it.
+37. Vulkan feature inspection.
+38. OpenGL ES feature inspection.
+39. WinCore/Winlator diagnostic log capture.
+40. Log filtering for relevant diagnostic lines.
+41. Redaction of selected sensitive log patterns before report sharing.
+42. Compatibility report generation.
+43. Compatibility report export through Android's document picker.
+44. Compatibility report sharing through Android's share sheet.
+45. Session history display.
+46. Session elapsed-time recording.
+47. Android app-process CPU-time recording.
+48. Android app-process PSS memory recording.
+49. Available system RAM snapshot at session end.
+50. Built-in troubleshooting guidance.
+
+### Important limitations
+
+- PE import inspection is static analysis, not a complete reverse-engineering or runtime compatibility test.
+- A detected DirectX indicator does not prove that a particular DirectX feature path will work.
+- Box64 and graphics-wrapper choices are advisory in the Compatibility Center. The screen does not silently override the existing Winlator runtime configuration.
+- Session CPU/PSS/RAM values describe the Android app process and system state, not isolated game-engine metrics.
+- GTA IV checks are diagnostic only. No GTA IV launch, gameplay, or FPS result is claimed.
+- The CI build validates compilation and selected integration markers. Physical-device and game-runtime testing remain outstanding.
+
+---
+
+# WinCore — retained 100-feature implementation register
 
 This register counts capabilities that are implemented in WinCore 3.0.0 or already provided by the pinned Winlator base. It does not imply that 100 brand-new engine changes were written in this release. Items marked **WinCore 3.0.0** are new in this release; **WinCore 2.0.0** are retained; **Winlator base** are upstream features preserved by WinCore.
 

@@ -29,7 +29,7 @@ for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
   cp "$BRANDING/ic_launcher_$density.png" "$APP_MODULE/src/main/res/mipmap-$density/ic_launcher_round.png"
   cp "$BRANDING/ic_launcher_foreground_$density.png" "$APP_MODULE/src/main/res/mipmap-$density/ic_launcher_foreground.png"
 done
-mkdir -p "$APP_MODULE/src/main/res/drawable-nodpi"
+mkdir -p "$APP_MODULE/src/main/res/drawable-nodpi" "$APP_MODULE/src/main/res/drawable-hdpi"
 cp "$BRANDING/wincore_logo.png" "$APP_MODULE/src/main/res/drawable-nodpi/wincore_logo.png"
 cp "$BRANDING/logo.png" "$APP_MODULE/src/main/res/drawable-hdpi/logo.png"
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## 4.0.0 — Compatibility Center
+
+- Added a Compatibility Center for executable inspection, per-game diagnostic profiles, GTA IV checks, profile history, import/export, preference backup/restore, conflict checks, launch-readiness checks, and compatibility reports.
+- Added advisory Box64 and graphics-wrapper recommendations without silently changing Winlator runtime settings.
+- Added session history using Android app-process CPU time, process PSS, elapsed time, and available RAM.
+- Replaced launcher artwork and WinCore logo assets with the supplied green-and-white image across Android density resources.
+- Preserved existing Winlator container, shortcut, controller, and graphics workflows.
+- Set Android versionName to 4.0.0 and versionCode to 40000.
+
+### Verification limits
+
+- Executable inspection and GTA IV checks are diagnostic only; no game launch or FPS guarantee is made.
+- Session metrics are Android app-process/system measurements, not isolated game-engine telemetry.
+- The CI artifact remains a debug build even though its filename omits the debug suffix.
+
 ## 3.0.0 — release
 
 - Added per-container and per-game CPU device profile override controls.
