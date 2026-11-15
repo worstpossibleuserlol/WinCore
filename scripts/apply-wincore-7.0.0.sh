@@ -223,7 +223,12 @@ if ! identify -regard-warnings "$DRAWER_LOGO" >/dev/null 2>&1; then
   echo "Navigation drawer banner is not a valid readable image: $DRAWER_LOGO"
   exit 1
 fi
+# The upstream app also ships a density-specific HDPI copy. Android prefers
+# that resource on HDPI devices, so replacing only drawable/logo.png leaves
+# the original Winlator artwork visible in the navigation drawer.
+mkdir -p "$APP_MODULE/src/main/res/drawable" "$APP_MODULE/src/main/res/drawable-hdpi"
 cp "$DRAWER_LOGO" "$APP_MODULE/src/main/res/drawable/logo.png"
+cp "$DRAWER_LOGO" "$APP_MODULE/src/main/res/drawable-hdpi/logo.png"
 python3 - "$APP_MODULE" <<'PY'
 from pathlib import Path
 import sys
@@ -458,6 +463,7 @@ shortcuts.write_text(shortcut_source, encoding="utf-8")
 PY
 
 cmp -s "$DRAWER_LOGO" "$APP_MODULE/src/main/res/drawable/logo.png"
+cmp -s "$DRAWER_LOGO" "$APP_MODULE/src/main/res/drawable-hdpi/logo.png"
 grep -q 'android:src="@drawable/logo"' "$APP_MODULE/src/main/res/layout/main_menu_header.xml"
 grep -q 'new ContainerManager(context, containerId)' "$APP_MODULE/src/main/java/com/winlator/ContainerDetailFragment.java"
 grep -q 'loadContainers(int selectedContainerId)' "$APP_MODULE/src/main/java/com/winlator/container/ContainerManager.java"

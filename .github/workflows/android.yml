@@ -244,6 +244,7 @@ jobs:
           set -euxo pipefail
           test -s "assets/branding/wincorebanner.png"
           cmp -s "assets/branding/wincorebanner.png" upstream/app/app/src/main/res/drawable/logo.png
+          cmp -s "assets/branding/wincorebanner.png" upstream/app/app/src/main/res/drawable-hdpi/logo.png
           grep -q 'android:src="@drawable/logo"' upstream/app/app/src/main/res/layout/main_menu_header.xml
           grep -q 'android:scaleType="fitCenter"' upstream/app/app/src/main/res/layout/main_menu_header.xml
           grep -q 'new ContainerManager(context, containerId)' upstream/app/app/src/main/java/com/winlator/ContainerDetailFragment.java
