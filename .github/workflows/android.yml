@@ -87,7 +87,7 @@ jobs:
           grep -q 'new WinCorePerformanceOverlay(this)' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
           grep -q 'Battery temperature:' upstream/app/app/src/main/java/com/winlator/WinCorePerformanceOverlay.java
           grep -q 'BTWinCoreShareProfile' upstream/app/app/src/main/res/layout/settings_fragment.xml
-          grep -q 'wincore_profile-v1' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'wincore-profile-v1' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           grep -q 'WinCore 3.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCoreProfileControls.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCorePerformanceOverlay.java
