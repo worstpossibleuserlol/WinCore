@@ -7,7 +7,7 @@ UPSTREAM_DIR="$REPO_ROOT/upstream"
 APP_MODULE="$UPSTREAM_DIR/app/app"
 OVERLAY="$REPO_ROOT/overlay"
 BRANDING="$REPO_ROOT/assets/branding"
-ICON="$BRANDING/wincore-previous-icon.png"
+ICON="$BRANDING/old-launcher-icon.png"
 VERSION="$(cat "$REPO_ROOT/VERSION")"
 
 if [[ ! -f "$APP_MODULE/build.gradle" || ! -f "$APP_MODULE/src/main/AndroidManifest.xml" ]]; then
@@ -32,7 +32,15 @@ cp "$OVERLAY/src/main/res/drawable/wincore_about_logo.xml" "$APP_MODULE/src/main
 # Restore the previous WinCore launcher artwork. Keep it centered inside
 # Android's launcher safe area instead of stretching a full-bleed image.
 if [[ ! -s "$ICON" ]]; then
-  echo "Previous WinCore launcher icon missing: $ICON"
+  echo "User-supplied WinCore launcher icon missing: $ICON"
+  exit 1
+fi
+if ! identify -regard-warnings "$ICON" >/dev/null 2>&1; then
+  echo "Launcher icon is not a valid readable image: $ICON"
+  exit 1
+fi
+if [[ "$(identify -format '%wx%h' "$ICON")" != "1400x1400" ]]; then
+  echo "Expected a 1400x1400 launcher icon; got $(identify -format '%wx%h' "$ICON")."
   exit 1
 fi
 if ! command -v convert >/dev/null 2>&1; then
@@ -184,9 +192,13 @@ PY
 
 
 # WinCore 7.0.0: use the user's exact image in the navigation drawer.
-DRAWER_LOGO="$BRANDING/WinCore To Replace WinLator Logo.png"
+DRAWER_LOGO="$BRANDING/wincorebanner.png"
 if [[ ! -s "$DRAWER_LOGO" ]]; then
-  echo "Required navigation drawer logo missing: $DRAWER_LOGO"
+  echo "Required navigation drawer banner missing: $DRAWER_LOGO"
+  exit 1
+fi
+if ! identify -regard-warnings "$DRAWER_LOGO" >/dev/null 2>&1; then
+  echo "Navigation drawer banner is not a valid readable image: $DRAWER_LOGO"
   exit 1
 fi
 cp "$DRAWER_LOGO" "$APP_MODULE/src/main/res/drawable/logo.png"
