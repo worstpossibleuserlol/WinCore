@@ -211,6 +211,8 @@ jobs:
           grep -q 'new ContainerManager(context, containerId)' upstream/app/app/src/main/java/com/winlator/ContainerDetailFragment.java
           grep -q 'loadContainers(int selectedContainerId)' upstream/app/app/src/main/java/com/winlator/container/ContainerManager.java
           grep -q 'Skipping unreadable container' upstream/app/app/src/main/java/com/winlator/container/ContainerManager.java
+          grep -q 'private boolean ensureClone()' upstream/app/app/src/main/java/com/winlator/core/WineRegistryEditor.java
+          grep -q 'if (!ensureClone()) return;' upstream/app/app/src/main/java/com/winlator/core/WineRegistryEditor.java
           grep -q 'private static final ExecutorService IO_EXECUTOR' upstream/app/app/src/main/java/com/winlator/container/ContainerManager.java
           ! grep -q 'Executors.newSingleThreadExecutor().execute' upstream/app/app/src/main/java/com/winlator/container/ContainerManager.java
 

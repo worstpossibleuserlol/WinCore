@@ -9,21 +9,22 @@ This register tracks the 50 features proposed for WinCore 7.0.0. A feature is ma
 3. Main-thread completion callbacks — implemented in source for container create, duplicate, and remove.
 4. Per-container malformed-config isolation — implemented in source; an unreadable config no longer aborts scanning all containers.
 5. Invalid container-ID handling — implemented in source; non-numeric and non-positive IDs are skipped.
-6. Exact user-supplied navigation drawer logo — implemented in source; copied to the upstream `drawable/logo.png` resource and checked byte-for-byte by CI.
-7. Logo aspect fitting — implemented in source; the drawer image uses fit-center scaling.
-8. Build-time drawer branding verification — implemented in CI.
-9. Container patch-anchor verification — implemented in CI.
-10. APK compilation and archive-integrity verification — implemented in CI.
+6. Lazy Wine registry cloning — implemented in source; reading registry settings no longer copies the whole user.reg file. A temporary copy is created only when a write is requested.
+7. Exact user-supplied navigation drawer logo — implemented in source; copied to the upstream `drawable/logo.png` resource and checked byte-for-byte by CI.
+8. Logo aspect fitting — implemented in source; the drawer image uses fit-center scaling.
+9. Build-time drawer branding verification — implemented in CI.
+10. Container patch-anchor verification — implemented in CI.
+11. APK compilation and archive-integrity verification — implemented in CI.
 
 ## Remaining proposed features — not yet implemented
 
-11. Container metadata cache.
-12. Smart cache invalidation.
-13. Lazy tab initialization.
-14. Lazy Wine registry access.
-15. Asynchronous Wine registry processing.
-16. Container-opening progress indicator.
-17. Atomic configuration saving.
+12. Container metadata cache.
+13. Smart cache invalidation.
+14. Lazy tab initialization.
+15. Lazy Wine registry access.
+16. Asynchronous Wine registry processing.
+17. Container-opening progress indicator.
+18. Atomic configuration saving.
 18. Container search.
 19. Custom container sorting.
 20. Favorite containers.
