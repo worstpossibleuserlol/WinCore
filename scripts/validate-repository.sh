@@ -37,7 +37,7 @@ if code_matches != [str(expected_code)]:
 print(f"Version metadata OK: {version} (versionCode {expected_code})")
 PY
 
-[[ -d upstream/.git ]] || fail "upstream submodule is not initialized; use git clone --recurse-submodules"
+[[ -e upstream/.git ]] || fail "upstream submodule is not initialized; use git clone --recurse-submodules"
 EXPECTED_UPSTREAM="$(git ls-tree HEAD upstream | awk '$1 == "160000" && $2 == "commit" { print $3 }')"
 [[ -n "$EXPECTED_UPSTREAM" ]] || fail "upstream is not recorded as a Git submodule in HEAD"
 ACTUAL_UPSTREAM="$(git -C upstream rev-parse HEAD)"
