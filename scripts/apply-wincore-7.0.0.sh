@@ -302,7 +302,7 @@ detail.write_text(d, encoding="utf-8")
 # Defer cloning user.reg until a write is requested; detail-screen reads stay read-only.
 registry = app / "src/main/java/com/winlator/core/WineRegistryEditor.java"
 w = registry.read_text(encoding="utf-8")
-w = w.replace("    private final File cloneFile;\\n", "    private File cloneFile;\\n    private boolean cloneCreated = false;\\n")
+w = w.replace("    private final File cloneFile;\n", "    private File cloneFile;\n    private boolean cloneCreated = false;\n")
 old_ctor = '''    public WineRegistryEditor(File file) {
         this.file = file;
         cloneFile = FileUtils.createTempFile(file.getParentFile(), FileUtils.getBasename(file.getPath()));
