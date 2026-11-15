@@ -1,0 +1,29 @@
+name: WinCore Repository Validation
+
+on:
+  push:
+    branches: [main, tooling/repository-validation]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-repository:
+    name: Validate project metadata and pinned source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out WinCore and its pinned upstream submodule
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Validate repository structure and version metadata
+        run: bash scripts/validate-repository.sh
