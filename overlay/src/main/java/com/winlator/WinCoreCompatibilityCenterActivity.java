@@ -20,6 +20,7 @@ import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
 import android.view.InputDevice;
 import android.provider.DocumentsContract;
+import android.provider.OpenableColumns;
 import android.database.Cursor;
 import android.text.InputType;
 import android.view.Gravity;
@@ -28,6 +29,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ImageView;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -62,6 +64,7 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
     private static final int EXPORT_BACKUP = 4105;
     private static final int IMPORT_BACKUP = 4106;
     private static final int EXPORT_REPORT = 4107;
+    private static final int PICK_COVER = 4108;
     private static final String PREFS = "wincore_compatibility_center";
     private static final int MAX_EXE_BYTES = 64 * 1024 * 1024;
 
@@ -83,6 +86,11 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
     private String pendingExport;
     private String pendingExportName = "WinCore-report.txt";
     private EditText customRules;
+    private EditText gameCategory;
+    private Spinner rendererProfile;
+    private Spinner resolutionProfile;
+    private ImageView gameCover;
+    private Uri coverUri;
     private long v5CpuSampleTime;
     private long v5CpuSampleValue;
 
@@ -92,16 +100,18 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
         store = getSharedPreferences(PREFS, MODE_PRIVATE);
         v5CpuSampleTime = SystemClock.elapsedRealtime();
         v5CpuSampleValue = Process.getElapsedCpuTime();
+        long uiStart = SystemClock.elapsedRealtime();
         buildInterface();
         loadProfile();
-        appendOutput("WinCore 5.0.0 Compatibility Center ready. Profiles are advisory and do not silently change Winlator runtime settings.");
+        store.edit().putLong("last_center_startup_ms", Math.max(0L, SystemClock.elapsedRealtime() - uiStart)).apply();
+        appendOutput("WinCore 6.0.0 Compatibility Center ready. Configuration recommendations remain separate from active Winlator runtime settings.");
     }
 
     private void buildInterface() {
         ScrollView scroll = new ScrollView(this);
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        int pad = dp(16);
+        int pad = dp(store.getBoolean("compact_dashboard", false) ? 10 : 16);
         page.setPadding(pad, pad, pad, pad);
         scroll.addView(page);
         setContentView(scroll);
@@ -111,7 +121,15 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
         page.addView(text("Executable analysis • GTA IV diagnostics • device checks • profiles • reports", 13, false));
         page.addView(text("Existing Winlator containers, shortcuts, graphics controls, and controller settings remain the source of runtime configuration.", 13, false));
 
+        gameCover = new ImageView(this);
+        gameCover.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        gameCover.setAdjustViewBounds(true);
+        page.addView(gameCover, new LinearLayout.LayoutParams(dp(140), dp(140)));
+        addButton(page, "Choose game cover image", this::chooseGameCover);
+
         gameName = edit("Game name");
+        gameCategory = edit("Game category");
+        page.addView(gameCategory);
         page.addView(gameName);
         executableLabel = text("Executable: not selected", 12, false);
         page.addView(executableLabel);
@@ -129,6 +147,12 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
         page.addView(text("Graphics wrapper recommendation (advisory)", 13, false));
         graphicsWrapper = spinner(new String[]{"Automatic", "DXVK", "WineD3D", "VKD3D"});
         page.addView(graphicsWrapper);
+        page.addView(text("Renderer profile (advisory)", 13, false));
+        rendererProfile = spinner(new String[]{"Automatic", "Turnip / Vulkan", "VirGL", "Zink", "WineD3D / OpenGL"});
+        page.addView(rendererProfile);
+        page.addView(text("Resolution profile (advisory)", 13, false));
+        resolutionProfile = spinner(new String[]{"Default", "960 x 540", "1280 x 720", "1600 x 900", "1920 x 1080"});
+        page.addView(resolutionProfile);
         page.addView(text("Launch arguments", 13, false));
         launchArguments = edit("Optional executable arguments");
         page.addView(launchArguments);
@@ -175,7 +199,7 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
         addButton(page, "Show compatibility troubleshooting guide", this::showTroubleshooting);
 
 
-        addSection(page, "WINCORE 5.0.0 — 50 COMPATIBILITY TOOLS");
+        addSection(page, "WINCORE 5.0.0 — EXISTING COMPATIBILITY TOOLS (RETAINED)");
         addButton(page, "01  Automatic game detection", this::detectGameExecutables);
         addButton(page, "02  Executable analyzer", this::analyzeExecutable);
         addButton(page, "03  Per-game profile manager", this::saveProfile);
@@ -229,6 +253,59 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
         addButton(page, "49  Profile comparison", this::compareProfileVersions);
         addButton(page, "50  Compatibility dashboard summary", this::showDashboardSummary);
 
+
+        addSection(page, "WINCORE 6.0.0 — AUTOMATION & STABILITY (50 FEATURES)");
+        addButton(page, "01  Automatic game profiles", this::createOrRefreshAutomaticProfile);
+        addButton(page, "02  Game version and file metadata", this::detectGameVersionMetadata);
+        addButton(page, "03  Multi-executable game detection", this::detectGameExecutables);
+        addButton(page, "04  Per-game settings presets", this::showPerGamePresets);
+        addButton(page, "05  Automatic profile selection", this::matchCompatibilityProfile);
+        addButton(page, "06  Game configuration comparison", this::compareProfileVersions);
+        addButton(page, "07  Profile change history", this::showProfileVersionHistory);
+        addButton(page, "08  One-tap profile restore", this::rollbackProfile);
+        addButton(page, "09  Game-specific environment variables", this::showEnvironmentVariables);
+        addButton(page, "10  Launch argument manager", this::showLaunchArguments);
+        addButton(page, "11  Graphics compatibility scanner", this::runGraphicsCompatibilityScan);
+        addButton(page, "12  Vulkan capability details", this::showVulkanCapabilities);
+        addButton(page, "13  OpenGL capability details", this::showOpenGlCapabilities);
+        addButton(page, "14  DXVK configuration manager", this::showDxvkManager);
+        addButton(page, "15  VKD3D configuration manager", this::showVkd3dManager);
+        addButton(page, "16  Graphics wrapper compatibility checks", this::checkGraphicsWrapper);
+        addButton(page, "17  Renderer selection profiles", this::showRendererProfiles);
+        addButton(page, "18  Resolution profiles", this::showResolutionProfiles);
+        addButton(page, "19  Fullscreen compatibility checks", this::checkFullscreenSettings);
+        addButton(page, "20  Graphics error analyzer", this::diagnoseGraphicsInitialization);
+        addButton(page, "21  Memory pressure history", this::recordMemorySample);
+        addButton(page, "22  Thermal history", this::recordThermalSample);
+        addButton(page, "23  Battery impact report", this::showBatteryImpactReport);
+        addButton(page, "24  Background application warning", this::backgroundProcessWarning);
+        addButton(page, "25  Launch resource estimator", this::estimateLaunchResources);
+        addButton(page, "26  CPU profile comparison", this::compareCpuProfiles);
+        addButton(page, "27  Session stability tracker", this::showStabilityTracker);
+        addButton(page, "28  Startup time history", this::showStartupTimeHistory);
+        addButton(page, "29  Low-storage warnings", this::checkLowStorage);
+        addButton(page, "30  Performance report export", this::exportSessionPerformanceReport);
+        addButton(page, "31  Crash report timeline", this::showCrashTimeline);
+        addButton(page, "32  Diagnostic bundle export", this::exportDiagnosticBundle);
+        addButton(page, "33  Wine error categorization", this::categorizeWineErrors);
+        addButton(page, "34  Box64 error categorization", this::categorizeBox64Errors);
+        addButton(page, "35  Missing component suggestions", this::suggestMissingComponents);
+        addButton(page, "36  Selected folder integrity comparison", this::compareContainerIntegrity);
+        addButton(page, "37  Configuration conflict detection", this::checkProfileConflicts);
+        addButton(page, "38  Pre-launch configuration backup", this::preLaunchBackup);
+        addButton(page, "39  Recovery mode", this::enterRecoveryMode);
+        addButton(page, "40  Diagnostic report comparison", this::compareDiagnosticReports);
+        addButton(page, "41  Game library categories", this::assignGameCategory);
+        addButton(page, "42  Game cover images", this::chooseGameCover);
+        addButton(page, "43  Custom game notes", this::showGameNotes);
+        addButton(page, "44  Favorite games", this::toggleFavorite);
+        addButton(page, "45  Recent game activity", this::showRecentActivity);
+        addButton(page, "46  Profile import validation", this::validateImportedProfile);
+        addButton(page, "47  Profile export validation", this::validateExportedProfile);
+        addButton(page, "48  Settings migration assistant", this::showContainerMigrationAssistant);
+        addButton(page, "49  Custom dashboard layout", this::toggleDashboardLayout);
+        addButton(page, "50  Compatibility Center 2.0 dashboard", this::showDashboardSummary);
+
         output = text("Results will appear here.", 12, false);
         output.setTextIsSelectable(true);
         output.setPadding(dp(12), dp(12), dp(12), dp(12));
@@ -247,6 +324,8 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
     private EditText edit(String hint) {
         EditText v = new EditText(this);
         v.setHint(hint);
+        v.setTextColor(0xffffffff);
+        v.setHintTextColor(0xffb8c0c8);
         v.setSingleLine(false);
         v.setTextSize(14);
         v.setPadding(dp(10), dp(8), dp(10), dp(8));
@@ -293,6 +372,10 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
         try {
             profile.put("format", "wincore-game-profile-v1");
             profile.put("gameName", gameName.getText().toString().trim());
+            profile.put("category", gameCategory.getText().toString().trim());
+            profile.put("coverUri", coverUri == null ? "" : coverUri.toString());
+            profile.put("rendererProfile", rendererProfile.getSelectedItem().toString());
+            profile.put("resolutionProfile", resolutionProfile.getSelectedItem().toString());
             profile.put("executableUri", executableUri == null ? "" : executableUri.toString());
             profile.put("folderUri", gameFolderUri == null ? "" : gameFolderUri.toString());
             profile.put("profileType", profileType.getSelectedItem().toString());
@@ -321,6 +404,12 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
 
     private void applyProfile(JSONObject profile) {
         gameName.setText(profile.optString("gameName", ""));
+        gameCategory.setText(profile.optString("category", ""));
+        String cover = profile.optString("coverUri", store.getString("cover_" + gameKey(), ""));
+        coverUri = cover.isEmpty() ? null : Uri.parse(cover);
+        if (gameCover != null && coverUri != null) gameCover.setImageURI(coverUri);
+        select(rendererProfile, profile.optString("rendererProfile", "Automatic"));
+        select(resolutionProfile, profile.optString("resolutionProfile", "Default"));
         String exe = profile.optString("executableUri", "");
         String folder = profile.optString("folderUri", "");
         executableUri = exe.isEmpty() ? null : Uri.parse(exe);
@@ -355,6 +444,15 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
         startActivityForResult(intent, PICK_EXE);
     }
 
+    private void chooseGameCover() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.setType("image/*");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        try { startActivityForResult(intent, PICK_COVER); }
+        catch (ActivityNotFoundException e) { appendOutput("No image picker is available."); }
+    }
+
     private void chooseGameFolder() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
@@ -370,7 +468,12 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
             getContentResolver().takePersistableUriPermission(uri, data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
         } catch (Exception ignored) { }
 
-        if (requestCode == PICK_EXE) {
+        if (requestCode == PICK_COVER) {
+            coverUri = uri;
+            store.edit().putString("cover_" + gameKey(), uri.toString()).apply();
+            if (gameCover != null) gameCover.setImageURI(uri);
+            appendOutput("Game cover image selected. It is stored as a document URI for this game profile.");
+        } else if (requestCode == PICK_EXE) {
             executableUri = uri;
             executableLabel.setText("Executable: " + displayName(uri));
             analyzeExecutable();
@@ -712,6 +815,7 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
         if (previous != null) history.put(previous);
         while (history.length() > 10) history.remove(0);
         store.edit().putString(prefKey, next.toString()).putString("history_" + key, history.toString()).apply();
+        recordRecentGame();
         appendOutput("Profile saved locally. Version snapshots kept: " + history.length() + ".");
     }
 
@@ -845,6 +949,8 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
                 appendOutput("Preferences merged from backup. Restart WinCore to refresh settings screens.");
             } else {
                 if (!"wincore-game-profile-v1".equals(root.optString("format"))) throw new JSONException("Not a WinCore game profile.");
+                validateProfileObject(root);
+                backupCurrentProfileBeforeChange("before-import");
                 applyProfile(root);
                 store.edit().putString("profile_" + gameKey(), root.toString()).apply();
                 appendOutput("Imported game profile: " + gameName.getText());
@@ -890,7 +996,7 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
 
     private void buildAndShowReport() {
         StringBuilder report = new StringBuilder();
-        report.append("WinCore 5.0.0 Compatibility Report\n");
+        report.append("WinCore 6.0.0 Compatibility Report\n");
         report.append("Generated: ").append(new java.util.Date()).append("\n\n");
         report.append("Device: ").append(Build.MANUFACTURER).append(" ").append(Build.MODEL).append("\n");
         report.append("Android: ").append(Build.VERSION.RELEASE).append(" / API ").append(Build.VERSION.SDK_INT).append("\n");
@@ -914,7 +1020,10 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
         report.append("Recent filtered logs:\n").append(store.getString("last_logs", "Not captured.")).append("\n");
         report.append("Limits: static PE import inspection and Android-reported telemetry only; no game launch, GPU benchmark, FPS measurement, or driver compatibility guarantee is performed.");
         String finalReport = report.toString();
-        store.edit().putString("last_report", finalReport).apply();
+        String priorReport = store.getString("last_report", null);
+        SharedPreferences.Editor reportEditor = store.edit().putString("last_report", finalReport);
+        if (priorReport != null) reportEditor.putString("previous_report", priorReport);
+        reportEditor.apply();
         appendOutput(finalReport);
     }
 
@@ -1285,7 +1394,7 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
         appendOutput(out.toString());
     }
 
-    private void showDashboardSummary() {
+    private void showDashboardSummaryLegacy() {
         ActivityManager.MemoryInfo memory = memoryInfoV5();
         StringBuilder out = new StringBuilder("WINCORE 5.0.0 COMPATIBILITY DASHBOARD\n");
         out.append("Saved game profile: ").append(store.contains("profile_" + gameKey())).append("\n");
@@ -1297,6 +1406,482 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
         out.append("Thermal status: ").append(readThermalStatus()).append("\n");
         out.append("Vulkan: ").append(readVulkanFeature()).append("\n");
         out.append("Session history:\n").append(WinCoreSessionTracker.readHistory(this));
+        out.append("\nNo game runtime compatibility is inferred by this summary.");
+        appendOutput(out.toString());
+    }
+
+
+    private void createOrRefreshAutomaticProfile() {
+        String key = gameKey();
+        String saved = store.getString("profile_" + key, null);
+        if (saved != null) {
+            loadProfile();
+            appendOutput("Loaded the saved per-game profile for " + gameName.getText() + ".");
+            return;
+        }
+        matchCompatibilityProfile();
+        saveProfile();
+        appendOutput("Created an initial advisory profile. Review it before using equivalent settings in Winlator.");
+    }
+
+    private void detectGameVersionMetadata() {
+        if (executableUri == null) { appendOutput("Select a game executable first."); return; }
+        Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(executableUri,
+                    new String[]{OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE, DocumentsContract.Document.COLUMN_LAST_MODIFIED},
+                    null, null, null);
+            if (cursor == null || !cursor.moveToFirst()) { appendOutput("The document provider did not expose file metadata."); return; }
+            String name = cursor.getString(0);
+            long size = cursor.isNull(1) ? -1L : cursor.getLong(1);
+            int modifiedIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_LAST_MODIFIED);
+            long modified = modifiedIndex >= 0 && !cursor.isNull(modifiedIndex) ? cursor.getLong(modifiedIndex) : -1L;
+            appendOutput("GAME FILE METADATA\nName: " + name + "\nSize: " +
+                    (size < 0 ? "not provided" : size + " bytes") + "\nLast modified: " +
+                    (modified < 0 ? "not provided" : new java.util.Date(modified)) +
+                    "\nThis does not extract the embedded Windows product version from PE resources.");
+        } catch (Exception e) { appendOutput("File metadata unavailable: " + e.getMessage()); }
+        finally { if (cursor != null) cursor.close(); }
+    }
+
+    private void showPerGamePresets() {
+        appendOutput("PER-GAME SETTINGS PRESETS\nGame: " + gameName.getText() +
+                "\nCompatibility: " + profileType.getSelectedItem() +
+                "\nBox64: " + box64Preset.getSelectedItem() +
+                "\nWrapper: " + graphicsWrapper.getSelectedItem() +
+                "\nRenderer: " + rendererProfile.getSelectedItem() +
+                "\nResolution: " + resolutionProfile.getSelectedItem() +
+                "\nUse Save game profile to store this named preset. These values remain advisory and are not silently applied to the active container.");
+    }
+
+    private void showEnvironmentVariables() {
+        String values = environmentVariables.getText().toString();
+        int validCount = 0, invalidCount = 0;
+        for (String line : values.split("\\R")) {
+            String item = line.trim();
+            if (item.isEmpty()) continue;
+            int equals = item.indexOf('=');
+            if (equals > 0 && item.substring(0, equals).matches("[A-Za-z_][A-Za-z0-9_]*")) validCount++;
+            else invalidCount++;
+        }
+        appendOutput("GAME-SPECIFIC ENVIRONMENT VARIABLES\n" + values +
+                "\nValid KEY=VALUE lines: " + validCount + "\nInvalid lines: " + invalidCount +
+                "\nThese are saved in the WinCore profile; they are not injected into existing Winlator shortcuts.");
+    }
+
+    private void runGraphicsCompatibilityScan() {
+        String imports = executableAnalysis.optJSONArray("imports") == null ? "not analyzed" : executableAnalysis.optJSONArray("imports").toString();
+        appendOutput("GRAPHICS COMPATIBILITY SCAN\nDirectX clue: " + executableAnalysis.optString("directX", "not analyzed") +
+                "\nVulkan: " + readVulkanFeature() + "\nOpenGL ES: " + readGlesFeature() +
+                "\nRenderer profile: " + rendererProfile.getSelectedItem() +
+                "\nWrapper: " + graphicsWrapper.getSelectedItem() +
+                "\nImported library clues: " + imports +
+                "\nStatic imports and Android feature metadata are not proof of runtime rendering compatibility.");
+    }
+
+    private void showOpenGlCapabilities() {
+        appendOutput("OPENGL CAPABILITY DETAILS\nAndroid PackageManager requirement: " + readGlesFeature() +
+                "\nDevice: " + Build.MANUFACTURER + " " + Build.MODEL +
+                "\nThe reported GLES feature is a platform requirement/capability indicator, not a live query of the renderer selected inside Winlator.");
+    }
+
+    private void showDxvkManager() {
+        appendWrapperVariables("DXVK", "DXVK_");
+    }
+
+    private void showVkd3dManager() {
+        appendWrapperVariables("VKD3D", "VKD3D_");
+    }
+
+    private void appendWrapperVariables(String title, String prefix) {
+        StringBuilder out = new StringBuilder(title + " CONFIGURATION MANAGER\n");
+        int found = 0;
+        for (String line : environmentVariables.getText().toString().split("\\R")) {
+            if (line.trim().toUpperCase(Locale.ROOT).startsWith(prefix)) { out.append(line.trim()).append("\n"); found++; }
+        }
+        if (found == 0) out.append("No ").append(prefix).append(" variables are configured in this profile.\n");
+        out.append("Edit the environment-variable field and save the profile to keep changes as notes. WinCore does not write these values into the live container.");
+        appendOutput(out.toString());
+    }
+
+    private void showRendererProfiles() {
+        appendOutput("RENDERER PROFILE\nSelected advisory: " + rendererProfile.getSelectedItem() +
+                "\nAndroid Vulkan: " + readVulkanFeature() + "\nAndroid GLES: " + readGlesFeature() +
+                "\nRenderer selection is stored in this WinCore profile only; change the actual renderer through the existing Winlator container controls.");
+    }
+
+    private void showResolutionProfiles() {
+        appendOutput("RESOLUTION PROFILE\nSelected advisory: " + resolutionProfile.getSelectedItem() +
+                "\nAndroid display: " + getResources().getDisplayMetrics().widthPixels + "x" +
+                getResources().getDisplayMetrics().heightPixels +
+                "\nChoose the corresponding resolution in the Winlator container/game settings. This profile field does not change the runtime resolution.");
+    }
+
+    private void checkFullscreenSettings() {
+        String env = environmentVariables.getText().toString().toLowerCase(Locale.ROOT);
+        String notesText = notes.getText().toString().toLowerCase(Locale.ROOT);
+        appendOutput("FULLSCREEN CONFIGURATION CHECK\nFullscreen-related environment entries: " +
+                (env.contains("fullscreen") || env.contains("virtual_desktop") ? "found" : "none found") +
+                "\nNotes mention borderless/windowed: " + (notesText.contains("borderless") || notesText.contains("windowed")) +
+                "\nWinCore cannot inspect the game's live display mode from this screen.");
+    }
+
+    private int sampleCount(String key) {
+        try { return new JSONArray(store.getString(key, "[]")).length(); }
+        catch (Exception e) { return 0; }
+    }
+
+    private void appendSample(String key, JSONObject value) {
+        JSONArray history;
+        try { history = new JSONArray(store.getString(key, "[]")); }
+        catch (Exception e) { history = new JSONArray(); }
+        history.put(value);
+        while (history.length() > 30) history.remove(0);
+        store.edit().putString(key, history.toString()).apply();
+    }
+
+    private void recordMemorySample() {
+        ActivityManager.MemoryInfo memory = memoryInfoV5();
+        JSONObject sample = new JSONObject();
+        try {
+            sample.put("time", System.currentTimeMillis());
+            sample.put("availableMiB", memory.availMem / (1024 * 1024));
+            sample.put("totalMiB", memory.totalMem / (1024 * 1024));
+            sample.put("lowMemory", memory.lowMemory);
+            sample.put("appPssKiB", Debug.getPss());
+        } catch (JSONException ignored) { }
+        appendSample("memory_samples", sample);
+        appendOutput("MEMORY PRESSURE SAMPLE\nAvailable RAM: " + memory.availMem / (1024 * 1024) +
+                " MiB\nApp PSS: " + Debug.getPss() + " KiB\nSamples saved: " +
+                sampleCount("memory_samples") +
+                "\nThese are Android system/app measurements, not per-game memory telemetry.");
+    }
+
+    private void recordThermalSample() {
+        JSONObject sample = new JSONObject();
+        String status = readThermalStatus();
+        String temperature = readBatteryTemperature();
+        try {
+            sample.put("time", System.currentTimeMillis());
+            sample.put("thermalStatus", status);
+            sample.put("batteryTemperature", temperature);
+        } catch (JSONException ignored) { }
+        appendSample("thermal_samples", sample);
+        appendOutput("THERMAL HISTORY SAMPLE\nThermal status: " + status +
+                "\nBattery temperature: " + temperature +
+                "\nSamples saved: " + sampleCount("thermal_samples"));
+    }
+
+    private int currentBatteryLevel() {
+        try {
+            Intent battery = registerReceiver(null, new android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            return battery == null ? -1 : battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+        } catch (Exception e) { return -1; }
+    }
+
+    private void showBatteryImpactReport() {
+        int level = currentBatteryLevel();
+        String temperature = readBatteryTemperature();
+        if (!store.contains("battery_baseline_level")) {
+            store.edit().putInt("battery_baseline_level", level)
+                    .putString("battery_baseline_temperature", temperature)
+                    .putLong("battery_baseline_time", System.currentTimeMillis()).apply();
+            appendOutput("BATTERY IMPACT BASELINE SAVED\nBattery: " + level + "%\nTemperature: " + temperature +
+                    "\nUse this action again after a session to compare. Android battery percentage is coarse and is not a direct power meter.");
+            return;
+        }
+        int baseline = store.getInt("battery_baseline_level", -1);
+        appendOutput("BATTERY IMPACT REPORT\nBaseline: " + baseline + "%\nCurrent: " + level +
+                "%\nChange: " + (baseline < 0 || level < 0 ? "unavailable" : (level - baseline) + " percentage points") +
+                "\nBaseline temperature: " + store.getString("battery_baseline_temperature", "unknown") +
+                "\nCurrent temperature: " + temperature);
+    }
+
+    private void estimateLaunchResources() {
+        ActivityManager.MemoryInfo memory = memoryInfoV5();
+        android.os.StatFs storage = new android.os.StatFs(getFilesDir().getAbsolutePath());
+        long freeBytes = storage.getAvailableBytes();
+        boolean low = memory.lowMemory || memory.availMem < 1024L * 1024L * 1024L || freeBytes < 1024L * 1024L * 1024L;
+        appendOutput("LAUNCH RESOURCE ESTIMATE\nAvailable RAM: " + memory.availMem / (1024 * 1024) + " MiB\n" +
+                "Available app-storage volume: " + freeBytes / (1024 * 1024) + " MiB\n" +
+                "Assessment: " + (low ? "resource pressure detected; postpone a demanding launch or free resources" : "no immediate low-RAM/low-storage flag detected") +
+                "\nThis is a coarse readiness estimate, not a prediction that the selected game will launch.");
+    }
+
+    private void compareCpuProfiles() {
+        int cores = Runtime.getRuntime().availableProcessors();
+        String choice = box64Preset.getSelectedItem().toString();
+        appendOutput("CPU PROFILE COMPARISON\nCurrent saved recommendation: " + choice +
+                "\nStability: conservative baseline; may reduce peak throughput.\n" +
+                "Intermediate: balanced starting point; still needs game-specific testing.\n" +
+                "Performance: may increase resource demand or instability; not automatically faster.\n" +
+                "Logical CPUs exposed to Android: " + cores +
+                "\nNo benchmark has been run and no Box64 profile is changed by this comparison.");
+    }
+
+    private void showStabilityTracker() {
+        String logs = store.getString("last_logs", "").toLowerCase(Locale.ROOT);
+        int fatal = countOccurrences(logs, "fatal exception");
+        int segv = countOccurrences(logs, "sigsegv") + countOccurrences(logs, "signal 11");
+        int aborts = countOccurrences(logs, "abort message") + countOccurrences(logs, "process aborted");
+        appendOutput("SESSION STABILITY TRACKER\nCompleted XServer sessions:\n" +
+                WinCoreSessionTracker.readHistory(this) +
+                "\nCrash indicators in latest captured log: fatal exceptions=" + fatal +
+                ", segmentation-fault clues=" + segv + ", abort clues=" + aborts +
+                "\nLog indicators are not a complete crash counter.");
+    }
+
+    private int countOccurrences(String haystack, String needle) {
+        if (haystack == null || needle == null || needle.isEmpty()) return 0;
+        int count = 0, at = 0;
+        while ((at = haystack.indexOf(needle, at)) >= 0) { count++; at += needle.length(); }
+        return count;
+    }
+
+    private void showStartupTimeHistory() {
+        appendOutput("STARTUP TIME HISTORY\nLast Compatibility Center UI initialization: " +
+                store.getLong("last_center_startup_ms", -1L) + " ms\n" +
+                "This records this Android screen's initialization only. The current Winlator integration does not expose reliable per-game process startup timing.");
+    }
+
+    private void checkLowStorage() {
+        android.os.StatFs storage = new android.os.StatFs(getFilesDir().getAbsolutePath());
+        long free = storage.getAvailableBytes();
+        appendOutput("LOW-STORAGE CHECK\nAvailable bytes on app storage volume: " + free +
+                "\nAvailable MiB: " + free / (1024 * 1024) +
+                "\n" + (free < 1024L * 1024L * 1024L ? "Warning: less than 1 GiB is available on this volume." : "No low-storage threshold warning for this volume.") +
+                "\nThis does not measure free space in every external game/container folder.");
+    }
+
+    private void exportSessionPerformanceReport() {
+        pendingExport = "WINCORE SESSION PERFORMANCE REPORT\nGenerated: " + new java.util.Date() +
+                "\n\n" + WinCoreSessionTracker.readHistory(this) +
+                "\nLatest RAM samples:\n" + store.getString("memory_samples", "[]") +
+                "\nThermal samples:\n" + store.getString("thermal_samples", "[]");
+        pendingExportName = "wincore-session-performance.txt";
+        createExportIntent("text/plain", pendingExportName, EXPORT_REPORT);
+    }
+
+    private void showCrashTimeline() {
+        String logs = store.getString("last_logs", "");
+        StringBuilder out = new StringBuilder("CRASH REPORT TIMELINE (latest captured log)\n");
+        int matched = 0;
+        for (String line : logs.split("\\R")) {
+            String lower = line.toLowerCase(Locale.ROOT);
+            if (lower.contains("fatal exception") || lower.contains("sigsegv") ||
+                    lower.contains("signal 11") || lower.contains("abort message") ||
+                    lower.contains("process died") || lower.contains("crash")) {
+                out.append(line).append("\n");
+                if (++matched >= 100) break;
+            }
+        }
+        if (matched == 0) out.append("No obvious crash markers found in the latest captured log.");
+        appendOutput(out.toString());
+    }
+
+    private void exportDiagnosticBundle() {
+        JSONObject bundle = new JSONObject();
+        try {
+            bundle.put("format", "wincore-diagnostic-bundle-v1");
+            bundle.put("createdAt", System.currentTimeMillis());
+            bundle.put("device", Build.MANUFACTURER + " " + Build.MODEL);
+            bundle.put("android", Build.VERSION.RELEASE + " / API " + Build.VERSION.SDK_INT);
+            bundle.put("gameProfile", readFormProfile());
+            bundle.put("lastReport", store.getString("last_report", ""));
+            bundle.put("capturedLogs", store.getString("last_logs", ""));
+            bundle.put("sessionHistory", WinCoreSessionTracker.readHistory(this));
+            bundle.put("memorySamples", store.getString("memory_samples", "[]"));
+            bundle.put("thermalSamples", store.getString("thermal_samples", "[]"));
+        } catch (JSONException ignored) { }
+        pendingExport = bundle.toString();
+        pendingExportName = gameKey() + "-wincore-diagnostic-bundle.json";
+        createExportIntent("application/json", pendingExportName, EXPORT_REPORT);
+    }
+
+    private void categorizeWineErrors() {
+        String logs = store.getString("last_logs", "").toLowerCase(Locale.ROOT);
+        appendOutput("WINE ERROR CATEGORIES\nImport/library errors: " + countOccurrences(logs, "import_dll") +
+                "\nHeap/exception errors: " + (countOccurrences(logs, "seh") + countOccurrences(logs, "exception")) +
+                "\nService/process errors: " + (countOccurrences(logs, "service") + countOccurrences(logs, "process")) +
+                "\nGraphics-related Wine errors: " + (countOccurrences(logs, "wined3d") + countOccurrences(logs, "d3d")) +
+                "\nThese are keyword counts from the latest captured log, not a diagnosis by themselves.");
+    }
+
+    private void categorizeBox64Errors() {
+        String logs = store.getString("last_logs", "").toLowerCase(Locale.ROOT);
+        appendOutput("BOX64 ERROR CATEGORIES\nDynarec clues: " + countOccurrences(logs, "dynarec") +
+                "\nUnsupported instruction clues: " + countOccurrences(logs, "unsupported") +
+                "\nMemory/segmentation clues: " + (countOccurrences(logs, "sigsegv") + countOccurrences(logs, "segmentation")) +
+                "\nELF/library clues: " + (countOccurrences(logs, "wrong elf") + countOccurrences(logs, "cannot open shared object")) +
+                "\nThese counts only reflect the latest captured log.");
+    }
+
+    private void suggestMissingComponents() {
+        String logs = store.getString("last_logs", "").toLowerCase(Locale.ROOT);
+        StringBuilder out = new StringBuilder("MISSING COMPONENT SUGGESTIONS\n");
+        if (logs.contains("err:module:import_dll") || logs.contains("dll not found")) {
+            out.append("• Check the exact missing DLL name, architecture, and whether it belongs with the game or the selected Wine prefix.\n");
+        }
+        if (logs.contains("vulkan") && (logs.contains("failed") || logs.contains("not found"))) {
+            out.append("• Inspect Android Vulkan availability and the container's selected graphics driver/wrapper.\n");
+        }
+        if (logs.contains("xinput") || logs.contains("dinput")) {
+            out.append("• Inspect the game's controller API requirements and existing Wine input components.\n");
+        }
+        if (logs.contains("msvcp") || logs.contains("vcruntime")) {
+            out.append("• Check the game's required Microsoft Visual C++ runtime version and architecture.\n");
+        }
+        if (out.toString().endsWith("\n")) out.append("No matching known component pattern was found. Capture logs after reproducing the issue.\n");
+        out.append("Do not download individual DLL files from untrusted websites.");
+        appendOutput(out.toString());
+    }
+
+    private void compareContainerIntegrity() {
+        if (gameFolderUri == null) { appendOutput("Select a game folder first. This compares the selected folder only, not a private Winlator container root."); return; }
+        try {
+            ArrayList<String> names = new ArrayList<>(scanTree(gameFolderUri));
+            Collections.sort(names);
+            String fingerprint = Integer.toHexString(names.toString().hashCode());
+            String key = "folder_fingerprint_" + gameKey();
+            String previous = store.getString(key, null);
+            store.edit().putString(key, fingerprint).apply();
+            appendOutput("SELECTED FOLDER INTEGRITY COMPARISON\nCurrent filename fingerprint: " + fingerprint +
+                    "\nPrevious snapshot: " + (previous == null ? "not available (baseline created)" : previous) +
+                    "\nResult: " + (previous == null ? "baseline stored" : previous.equals(fingerprint) ? "scanned filenames unchanged" : "scanned filenames changed") +
+                    "\nThis compares names only; it does not hash file contents or inspect container internals.");
+        } catch (Exception e) { appendOutput("Folder comparison failed: " + e.getMessage()); }
+    }
+
+    private void backupCurrentProfileBeforeChange(String reason) {
+        store.edit().putString("backup_" + reason + "_" + gameKey(), readFormProfile().toString()).apply();
+    }
+
+    private void preLaunchBackup() {
+        backupCurrentProfileBeforeChange("prelaunch");
+        appendOutput("PRE-LAUNCH CONFIGURATION BACKUP SAVED\nSaved the current WinCore profile before any proposed profile change. This does not back up the entire Winlator container, Wine prefix, or game data.");
+    }
+
+    private void enterRecoveryMode() {
+        preLaunchBackup();
+        select(profileType, "Stability-first recommendation");
+        select(box64Preset, "Stability");
+        select(graphicsWrapper, "Automatic");
+        select(rendererProfile, "Automatic");
+        select(resolutionProfile, "960 x 540");
+        saveProfile();
+        appendOutput("RECOVERY MODE PROFILE PREPARED\nA conservative diagnostic profile was saved. It does not change the active Winlator container; apply equivalent values manually and test one change at a time.");
+    }
+
+    private void compareDiagnosticReports() {
+        String previous = store.getString("previous_report", null);
+        String current = store.getString("last_report", null);
+        if (previous == null || current == null) { appendOutput("Build at least two compatibility reports to compare them."); return; }
+        Set<String> before = new HashSet<>(java.util.Arrays.asList(previous.split("\\R")));
+        Set<String> after = new HashSet<>(java.util.Arrays.asList(current.split("\\R")));
+        StringBuilder out = new StringBuilder("DIAGNOSTIC REPORT COMPARISON\n");
+        for (String line : after) if (!before.contains(line)) out.append("+ ").append(line).append("\n");
+        for (String line : before) if (!after.contains(line)) out.append("- ").append(line).append("\n");
+        appendOutput(out.toString());
+    }
+
+    private void assignGameCategory() {
+        String category = gameCategory.getText().toString().trim();
+        if (category.isEmpty()) { appendOutput("Enter a category in the Game category field first."); return; }
+        saveProfile();
+        appendOutput("Game category saved: " + category + ". Use the local profile database to review saved game records.");
+    }
+
+    private void showGameNotes() {
+        String value = notes.getText().toString().trim();
+        appendOutput("GAME NOTES — " + gameName.getText() + "\n" + (value.isEmpty() ? "No notes entered." : value));
+    }
+
+    private void toggleFavorite() {
+        String key = "favorite_" + gameKey();
+        boolean favorite = !store.getBoolean(key, false);
+        store.edit().putBoolean(key, favorite).apply();
+        appendOutput(gameName.getText() + (favorite ? " added to" : " removed from") + " Favorites.");
+    }
+
+    private void showRecentActivity() {
+        StringBuilder out = new StringBuilder("RECENT GAME ACTIVITY\n");
+        try {
+            JSONArray recent = new JSONArray(store.getString("recent_games", "[]"));
+            for (int i = recent.length() - 1; i >= 0; i--) {
+                JSONObject item = recent.getJSONObject(i);
+                out.append("• ").append(item.optString("name")).append(" — ")
+                        .append(new java.util.Date(item.optLong("time"))).append("\n");
+            }
+            if (recent.length() == 0) out.append("No saved profile activity yet.");
+        } catch (Exception e) { out.append("Recent activity data is unreadable."); }
+        appendOutput(out.toString());
+    }
+
+    private void recordRecentGame() {
+        JSONArray recent;
+        try { recent = new JSONArray(store.getString("recent_games", "[]")); }
+        catch (Exception e) { recent = new JSONArray(); }
+        JSONObject item = new JSONObject();
+        try { item.put("name", gameName.getText().toString().trim()); item.put("time", System.currentTimeMillis()); }
+        catch (JSONException ignored) { }
+        recent.put(item);
+        while (recent.length() > 30) recent.remove(0);
+        store.edit().putString("recent_games", recent.toString()).apply();
+    }
+
+    private boolean validateProfileObject(JSONObject profile) throws JSONException {
+        String name = profile.optString("gameName", "").trim();
+        if (name.isEmpty() || name.length() > 120) throw new JSONException("Game name is empty or too long.");
+        if (profile.optString("format", "").equals("wincore-game-profile-v1") == false) throw new JSONException("Unsupported profile format.");
+        if (profile.optString("launchArguments", "").length() > 4096) throw new JSONException("Launch arguments exceed 4 KiB.");
+        if (profile.optString("environmentVariables", "").length() > 8192) throw new JSONException("Environment variables exceed 8 KiB.");
+        return true;
+    }
+
+    private void validateImportedProfile() {
+        try {
+            JSONObject profile = readFormProfile();
+            validateProfileObject(profile);
+            appendOutput("PROFILE IMPORT VALIDATION\nThe currently loaded profile meets required format and field-size checks. JSON files are validated again during import before they are applied.");
+        } catch (Exception e) { appendOutput("Profile validation failed: " + e.getMessage()); }
+    }
+
+    private void validateExportedProfile() {
+        try {
+            JSONObject profile = readFormProfile();
+            validateProfileObject(profile);
+            String json = profile.toString();
+            if (json.length() > 256 * 1024) throw new JSONException("Profile exceeds 256 KiB.");
+            appendOutput("PROFILE EXPORT VALIDATION\nProfile format and required fields are valid. Serialized size: " + json.length() + " characters.");
+            exportProfile();
+        } catch (Exception e) { appendOutput("Profile export blocked: " + e.getMessage()); }
+    }
+
+    private void toggleDashboardLayout() {
+        boolean compact = !store.getBoolean("compact_dashboard", false);
+        store.edit().putBoolean("compact_dashboard", compact).apply();
+        Toast.makeText(this, "Dashboard layout: " + (compact ? "Compact" : "Standard"), Toast.LENGTH_SHORT).show();
+        recreate();
+    }
+
+    private void showDashboardSummary() {
+        ActivityManager.MemoryInfo memory = memoryInfoV5();
+        StringBuilder out = new StringBuilder("WINCORE 6.0.0 COMPATIBILITY CENTER 2.0\n");
+        out.append("Saved game profile: ").append(store.contains("profile_" + gameKey())).append("\n");
+        out.append("Favorite: ").append(store.getBoolean("favorite_" + gameKey(), false)).append("\n");
+        out.append("Category: ").append(gameCategory.getText()).append("\n");
+        out.append("Selected game: ").append(gameName.getText()).append("\n");
+        out.append("Executable: ").append(executableUri == null ? "not selected" : displayName(executableUri)).append("\n");
+        out.append("Available RAM: ").append(memory.availMem / (1024 * 1024)).append(" MiB\n");
+        out.append("Low-memory flag: ").append(memory.lowMemory).append("\n");
+        out.append("Battery temperature: ").append(readBatteryTemperature()).append("\n");
+        out.append("Thermal status: ").append(readThermalStatus()).append("\n");
+        out.append("Vulkan: ").append(readVulkanFeature()).append("\n");
+        out.append("OpenGL ES: ").append(readGlesFeature()).append("\n");
+        out.append("Renderer profile: ").append(rendererProfile.getSelectedItem()).append("\n");
+        out.append("Resolution profile: ").append(resolutionProfile.getSelectedItem()).append("\n");
+        out.append("Session history:\n").append(WinCoreSessionTracker.readHistory(this));
+        out.append("\nDashboard layout: ").append(store.getBoolean("compact_dashboard", false) ? "Compact" : "Standard");
         out.append("\nNo game runtime compatibility is inferred by this summary.");
         appendOutput(out.toString());
     }

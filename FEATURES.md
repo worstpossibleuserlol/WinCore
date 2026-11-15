@@ -277,3 +277,83 @@ The following numbered actions are exposed in the WinCore 5.0.0 Compatibility Ce
 - Whole-device CPU load, game FPS, frame pacing, GPU utilization, in-game audio playback, and actual GTA IV runtime compatibility are not claimed.
 - Android may restrict visibility into background processes, logs, and hardware features.
 - Settings/profile JSON backup does not archive RootFS, the complete container, Wine prefix, or game data.
+
+
+---
+
+# WinCore 6.0.0 — Automation & Stability (50 features)
+
+## Advanced game management
+
+1. **Automatic Game Profiles** — load a saved profile for the selected game or create an initial advisory profile.
+2. **Game Version and File Metadata** — display document name, size, and last-modified time when the Android document provider exposes them.
+3. **Multi-Executable Detection** — enumerate executable filenames in the selected game folder.
+4. **Per-Game Settings Presets** — save compatibility, Box64, wrapper, renderer, resolution, arguments, and environment-variable choices by game.
+5. **Automatic Profile Selection** — suggest a profile from game-name and static executable indicators.
+6. **Game Configuration Comparison** — compare the current form with the previous saved profile snapshot.
+7. **Profile Change History** — list previous profile snapshots.
+8. **One-Tap Profile Restore** — restore the previous saved WinCore profile.
+9. **Game-Specific Environment Variables** — store and validate KEY=VALUE entries per profile.
+10. **Launch Argument Manager** — save and review per-game executable arguments.
+
+## Graphics and rendering
+
+11. **Graphics Compatibility Scanner** — combine static executable clues with Android Vulkan/GLES feature metadata.
+12. **Vulkan Capability Details** — display Android PackageManager Vulkan feature metadata.
+13. **OpenGL Capability Details** — display Android's reported OpenGL ES requirement/capability indicator.
+14. **DXVK Configuration Manager** — review DXVK-prefixed environment variables stored in the profile.
+15. **VKD3D Configuration Manager** — review VKD3D-prefixed environment variables stored in the profile.
+16. **Graphics Wrapper Compatibility Checks** — present wrapper guidance from static API clues and device feature metadata.
+17. **Renderer Selection Profiles** — save an advisory renderer choice per game.
+18. **Resolution Profiles** — save an advisory resolution choice per game.
+19. **Fullscreen Compatibility Checks** — inspect saved notes and environment-variable names for fullscreen-related clues.
+20. **Graphics Error Analyzer** — filter graphics-related lines from the latest captured logs.
+
+## Performance and stability
+
+21. **Memory Pressure History** — record available Android RAM and app PSS when requested.
+22. **Thermal History** — record Android thermal status and battery temperature when requested.
+23. **Battery Impact Report** — compare manually established battery percentage/temperature snapshots.
+24. **Background Application Warning** — report other processes visible to Android; Android may restrict this list.
+25. **Launch Resource Estimator** — estimate readiness from available system RAM and the app storage volume.
+26. **CPU Profile Comparison** — explain stability/intermediate/performance preset tradeoffs; does not benchmark Box64.
+27. **Session Stability Tracker** — combine completed XServer session history with crash keywords in the latest captured log.
+28. **Startup Time History** — display Compatibility Center UI initialization time; it does not measure Windows game startup.
+29. **Low-Storage Warnings** — warn based on free space reported for the app storage volume.
+30. **Performance Report Export** — export session history and user-triggered memory/thermal snapshots.
+
+## Diagnostics and recovery
+
+31. **Crash Report Timeline** — filter fatal/segmentation-fault/abort clues from the latest captured log.
+32. **Diagnostic Bundle Export** — export device, profile, session, report, sample, and captured-log data as JSON.
+33. **Wine Error Categorization** — count common Wine error keywords in the latest captured log.
+34. **Box64 Error Categorization** — count Box64/dynarec/ELF/segmentation keywords in the latest captured log.
+35. **Missing Component Suggestions** — provide cautious suggestions based on missing-library, Vulkan, input, and runtime clues.
+36. **Selected Folder Integrity Comparison** — compare bounded scanned filenames to a previously saved filename fingerprint; no file-content hashing is performed.
+37. **Configuration Conflict Detection** — reuse the existing profile/environment-variable consistency checks.
+38. **Pre-Launch Configuration Backup** — save a profile snapshot before preparing a new recommendation.
+39. **Recovery Mode** — prepare and save conservative profile values; does not modify the active Winlator container.
+40. **Diagnostic Report Comparison** — compare the previous and latest generated compatibility report lines.
+
+## Usability and customization
+
+41. **Game Library Categories** — store a user-defined category in the game profile.
+42. **Game Cover Images** — select and retain a document URI for a game cover image.
+43. **Custom Game Notes** — review and store troubleshooting notes per game.
+44. **Favorite Games** — toggle a local favorite flag for the selected game.
+45. **Recent Game Activity** — list recent saved-profile activity; it is not a guaranteed launch event history.
+46. **Profile Import Validation** — validate profile format and required fields before applying an imported JSON profile.
+47. **Profile Export Validation** — validate profile fields and size before opening the export flow.
+48. **Settings Migration Assistant** — provide steps to move supported profiles/preferences between devices.
+49. **Custom Dashboard Layout** — switch between standard and compact Compatibility Center spacing.
+50. **Compatibility Center 2.0** — summarize profile, favorites, category, device capability, resource state, and session history.
+
+## 6.0.0 verification limits
+
+- Game file version inspection is limited to document metadata; it does not parse PE version-resource records.
+- Renderer/resolution/wrapper/Box64 choices are profile notes and recommendations only. They are not silently applied to live containers or shortcuts.
+- Memory and thermal history are sampled only when the user taps the relevant controls. Battery comparisons are not electrical power measurements.
+- The startup metric is the Compatibility Center activity initialization time, not Windows game launch time.
+- Storage checks cover the app storage volume. Selected-folder integrity comparison fingerprints filenames, not contents or container filesystems.
+- Diagnostic bundles are JSON/text exports and do not include RootFS, full containers, Wine prefixes, or game data.
+- FPS, GPU utilization, frame pacing, GTA IV compatibility, and physical-device runtime behavior are not guaranteed.

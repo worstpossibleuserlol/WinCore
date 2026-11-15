@@ -1,5 +1,26 @@
 # Changelog
 
+## 6.0.0 — Automation, Stability, and About-screen cleanup
+
+- Added 50 Automation & Stability Compatibility Center actions: automatic per-game profile workflows, game-file metadata, multiple executable discovery, saved presets, profile history/rollback, renderer and resolution profile notes, graphics capability checks, DXVK/VKD3D variable review, fullscreen checks, RAM/thermal samples, battery baselines, resource readiness estimates, stability and startup history, low-storage checks, log categorization, diagnostic exports, selected-folder filename comparison, recovery profiles, report comparison, categories, covers, favorites, recent profile activity, import/export validation, and a compact dashboard option.
+- Added game categories, user-selected cover images, favorites, and recent saved-profile activity using local app preferences.
+- Added renderer and resolution profile fields to per-game profile JSON.
+- Added pre-change profile snapshots and a conservative recovery profile flow; these save WinCore profile recommendations and do not directly rewrite the active Winlator container.
+- Changed Compatibility Center EditText inputs to white entered text with light-gray hint text for readability in the dark UI.
+- Removed the old Winlator website row from the About dialog.
+- Replaced only the About dialog's top-right image with a dedicated green-on-charcoal WinCore About drawable; left the launcher icon resources untouched.
+- Updated Android versionName to 6.0.0 and versionCode to 60000.
+
+### Verification limits
+
+- File version detection displays document name, size, and modified time; it does not decode embedded PE product-version resources.
+- Renderer/resolution/graphics environment configuration and recovery settings remain stored advisory profiles, not automatic active-container changes.
+- RAM and thermal histories are recorded on user request. Battery impact is a coarse percentage/temperature comparison, not power measurement.
+- Startup history measures Compatibility Center UI initialization, not Windows game startup. Storage checks cover the app storage volume only.
+- Selected-folder integrity comparison fingerprints scanned filenames only; it does not hash file contents or inspect protected container storage.
+- Diagnostic exports are JSON/text; no complete RootFS, container, Wine-prefix, or game-data archive is made.
+- No physical-device or game-runtime compatibility test is implied by CI.
+
 ## 5.0.0 — Compatibility Suite and supplied WinCore branding
 
 - Added 50 numbered Compatibility Center actions spanning executable/game detection, profile matching, Wine/Box64 and graphics advice, RAM/CPU/thermal snapshots, GTA IV diagnostics, Android controller/audio output inspection, log filtering, missing-DLL pattern detection, folder checks, profile history, backup guidance, and compatibility summaries.

@@ -8,18 +8,36 @@ WinCore is an independent community modification of [Winlator](https://github.co
 
 WinCore adds configurable device profiles, per-container and per-game settings, launch safety options, session monitoring, profile sharing, and a 50-action Compatibility Center for game inspection, diagnostic profiles, GTA IV checks, resource snapshots, logs, and reports while preserving the core Winlator workflow.
 
-**Current version: 5.0.0**
+**Current version: 6.0.0**
 
 ## Installation
 
 1. Open the [WinCore GitHub repository](https://github.com/worstpossibleuserlol/WinCore).
 2. Open **Actions** and select the successful build workflow for the version you want.
-3. Download the available APK artifact from the workflow run. The current 5.0.0 CI artifact is named `WinCore-5.0.0`.
+3. Download the available APK artifact from the workflow run. The current 6.0.0 CI artifact is named `WinCore-6.0.0`.
 4. Extract the downloaded ZIP file and locate the APK.
 5. Install the APK on your Android device. Android may ask you to allow installation from the app or browser you used to download it.
 6. Open WinCore and create or select a container.
 
 The CI artifact is a **debug build**, not a production-signed release. The APK filename intentionally omits a `-debug` suffix, but that does not change its build type or signing status. Only install builds from a source you trust.
+
+## WinCore 6.0.0 Automation & Stability
+
+WinCore 6.0.0 adds a second set of 50 Compatibility Center actions for per-game profiles, executable metadata, graphics capability inspection, DXVK/VKD3D environment-variable review, renderer/resolution presets, RAM and thermal sampling, resource readiness, stability/log analysis, diagnostic exports, recovery profiles, game categories, cover images, favorites, and a compact dashboard layout.
+
+The Compatibility Center's editable fields now use white entered text and light-gray hints in the dark theme. The About dialog hides the old `winlator.org` website row and uses a dedicated green-on-charcoal WinCore About graphic. This About graphic is a separate drawable; the Android launcher icon is not changed by this About-screen correction.
+
+### 6.0.0 measurement and configuration limits
+
+- Game file version information is limited to document name, size, and last-modified metadata; embedded Windows product-version resources are not decoded.
+- Renderer, resolution, DXVK, VKD3D, Box64, environment-variable, and recovery values are saved as WinCore profile recommendations. They are not silently injected into a running Winlator container.
+- RAM/thermal history is sampled when the user taps the corresponding action; it is not continuous background monitoring.
+- Battery impact uses coarse Android battery-percentage and temperature snapshots, not a power meter.
+- Startup-time history measures Compatibility Center initialization, not Windows game startup time.
+- Low-storage checks report the app's storage volume, not every game or external container folder.
+- Selected-folder integrity comparison compares scanned filenames, not file contents or the private Winlator container filesystem.
+- Diagnostic exports are JSON or text documents, not a full container archive. Existing backup limits still apply.
+- Game compatibility, GTA IV launchability, FPS, GPU utilization, and per-game frame pacing are not guaranteed or claimed by these inspection features.
 
 ## WinCore 5.0.0 Compatibility Center
 
@@ -27,7 +45,7 @@ The Compatibility Center exposes 50 numbered tools covering game-folder executab
 
 The green four-panel image supplied for WinCore is the canonical launcher icon and logo asset. The build script installs it in all five Android launcher density folders, the adaptive launcher resources, the app logo resource, and the upstream logo files. CI compares each installed launcher/logo copy byte-for-byte with the canonical asset.
 
-The 50 tools are a mix of new controls and existing WinCore 4.0.0 functions presented in one place. Recommendations do not silently alter the Winlator runtime. Android CPU/PSS readings are app-process measurements, not isolated game telemetry. Frame-pacing/FPS measurement is not claimed. The JSON preferences backup does not archive the complete container, Wine prefix, or game files. Profile sharing uses local JSON import/export; no online community server is included.
+The 50 tools are a mix of new controls and existing WinCore functions. Recommendations do not silently alter the Winlator runtime. Android CPU/PSS readings are app-process measurements, not isolated game telemetry. Frame-pacing/FPS measurement is not claimed. The JSON preferences backup does not archive the complete container, Wine prefix, or game files. Profile sharing uses local JSON import/export; no online community server is included.
 
 ## Useful Tips
 
@@ -87,14 +105,14 @@ To build from source:
 git clone --recurse-submodules https://github.com/worstpossibleuserlol/WinCore.git
 cd WinCore
 bash scripts/apply-wincore-patch.sh
-bash scripts/apply-wincore-5.0.0.sh
+bash scripts/apply-wincore-6.0.0.sh
 cd upstream/app
 bash gradlew assembleDebug
 ```
 
 The Android build requires JDK 17, Android SDK Platform 35, NDK 24.0.8215888, and CMake 3.22.1. The debug APK is written to `upstream/app/app/build/outputs/apk/debug/app-debug.apk`.
 
-GitHub Actions builds and validates the debug APK and uploads it as the **WinCore-5.0.0** artifact.
+GitHub Actions builds and validates the debug APK and uploads it as the **WinCore-6.0.0** artifact.
 
 ## More Information
 

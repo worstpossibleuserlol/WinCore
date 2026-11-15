@@ -15,8 +15,8 @@ jobs:
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-      WINCORE_VERSION: 5.0.0
-      WINCORE_VERSION_CODE: 50000
+      WINCORE_VERSION: 6.0.0
+      WINCORE_VERSION_CODE: 60000
     steps:
       - name: Checkout WinCore and upstream submodules
         uses: actions/checkout@v4
@@ -40,11 +40,11 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null
           "$SDKMANAGER" --install \
             "platforms;android-35" \
-            "build-tools;35.0.0" \
+            "build-tools;36.0.0" \
             "ndk;24.0.8215888" \
             "cmake;3.22.1"
 
-      - name: Apply WinCore 3.0.0 foundation with 5.0.0 version metadata
+      - name: Apply WinCore 3.0.0 foundation with 6.0.0 version metadata
         run: bash scripts/apply-wincore-patch.sh upstream "$WINCORE_VERSION"
 
       - name: Verify WinCore 3.0.0 features and container audit
@@ -76,7 +76,7 @@ jobs:
           grep -q 'WinCoreAppearance.apply' upstream/app/app/src/main/java/com/winlator/MainActivity.java
           grep -q 'wincore_ui_accent' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           grep -q 'wincore_ui_density' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
-          grep -q 'WinCore 5.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'WinCore 6.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCoreDeviceProfile.java
           grep -q 'setWinCoreDeviceProfile(selectedWinCoreProfile)' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
           grep -q 'wincore_cpu_profile' upstream/app/app/src/main/java/com/winlator/ContainerDetailFragment.java
@@ -88,18 +88,27 @@ jobs:
           grep -q 'Battery temperature:' upstream/app/app/src/main/java/com/winlator/WinCorePerformanceOverlay.java
           grep -q 'BTWinCoreShareProfile' upstream/app/app/src/main/res/layout/settings_fragment.xml
           grep -q 'wincore-profile-v1' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
-          grep -q 'WinCore 5.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'WinCore 6.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCoreProfileControls.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCorePerformanceOverlay.java
 
-      - name: Apply WinCore 5.0.0 Compatibility Center and green branding
-        run: bash scripts/apply-wincore-5.0.0.sh
+      - name: Apply WinCore 6.0.0 automation, stability, About fixes, and branding
+        run: bash scripts/apply-wincore-6.0.0.sh
 
-      - name: Verify WinCore 5.0.0 integration and supplied icon
+      - name: Verify WinCore 6.0.0 features, About dialog, text colors, and icon integrity
         run: |
           set -euxo pipefail
           test -s upstream/app/app/src/main/java/com/winlator/WinCoreCompatibilityCenterActivity.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCoreSessionTracker.java
+          test -s upstream/app/app/src/main/java/com/winlator/contentdialog/AboutDialog.java
+          test -s upstream/app/app/src/main/res/layout/about_dialog.xml
+          test -s upstream/app/app/src/main/res/drawable/wincore_about_logo.xml
+          grep -q 'website.setVisibility(View.GONE)' upstream/app/app/src/main/java/com/winlator/contentdialog/AboutDialog.java
+          ! grep -qi 'winlator.org' upstream/app/app/src/main/java/com/winlator/contentdialog/AboutDialog.java
+          grep -q 'android:src="@drawable/wincore_about_logo"' upstream/app/app/src/main/res/layout/about_dialog.xml
+          ! grep -q '@mipmap/ic_launcher' upstream/app/app/src/main/res/layout/about_dialog.xml
+          grep -q 'setTextColor(0xffffffff)' upstream/app/app/src/main/java/com/winlator/WinCoreCompatibilityCenterActivity.java
+          grep -q 'setHintTextColor(0xffb8c0c8)' upstream/app/app/src/main/java/com/winlator/WinCoreCompatibilityCenterActivity.java
           grep -q 'BTWinCoreCompatibilityCenter' upstream/app/app/src/main/res/layout/settings_fragment.xml
           grep -q 'WinCoreSessionTracker.onSessionStart' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
           grep -q 'WinCoreSessionTracker.onSessionEnd' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
@@ -130,6 +139,60 @@ jobs:
             "50  Compatibility dashboard summary"; do
             grep -Fq "$label" "$ACTIVITY"
           done
+          COMPAT="$ACTIVITY"
+          for label in \
+            "01  Automatic game profiles" \
+            "02  Game version and file metadata" \
+            "03  Multi-executable game detection" \
+            "04  Per-game settings presets" \
+            "05  Automatic profile selection" \
+            "06  Game configuration comparison" \
+            "07  Profile change history" \
+            "08  One-tap profile restore" \
+            "09  Game-specific environment variables" \
+            "10  Launch argument manager" \
+            "11  Graphics compatibility scanner" \
+            "12  Vulkan capability details" \
+            "13  OpenGL capability details" \
+            "14  DXVK configuration manager" \
+            "15  VKD3D configuration manager" \
+            "16  Graphics wrapper compatibility checks" \
+            "17  Renderer selection profiles" \
+            "18  Resolution profiles" \
+            "19  Fullscreen compatibility checks" \
+            "20  Graphics error analyzer" \
+            "21  Memory pressure history" \
+            "22  Thermal history" \
+            "23  Battery impact report" \
+            "24  Background application warning" \
+            "25  Launch resource estimator" \
+            "26  CPU profile comparison" \
+            "27  Session stability tracker" \
+            "28  Startup time history" \
+            "29  Low-storage warnings" \
+            "30  Performance report export" \
+            "31  Crash report timeline" \
+            "32  Diagnostic bundle export" \
+            "33  Wine error categorization" \
+            "34  Box64 error categorization" \
+            "35  Missing component suggestions" \
+            "36  Selected folder integrity comparison" \
+            "37  Configuration conflict detection" \
+            "38  Pre-launch configuration backup" \
+            "39  Recovery mode" \
+            "40  Diagnostic report comparison" \
+            "41  Game library categories" \
+            "42  Game cover images" \
+            "43  Custom game notes" \
+            "44  Favorite games" \
+            "45  Recent game activity" \
+            "46  Profile import validation" \
+            "47  Profile export validation" \
+            "48  Settings migration assistant" \
+            "49  Custom dashboard layout" \
+            "50  Compatibility Center 2.0 dashboard"; do
+            grep -Fq "$label" "$COMPAT"
+          done
           ICON="assets/branding/wincore-user-icon.png"
           echo "53ab7c3aedc3e2b1bb729c6d7a94b7d9587196f9a368c96de342b583daf175b2  $ICON" | sha256sum -c -
           for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
@@ -153,7 +216,7 @@ jobs:
           APK="upstream/app/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
           unzip -t "$APK"
-          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
           BADGING="$("$AAPT" dump badging "$APK")"
           grep -q "package: name='com.wincore'" <<< "$BADGING"
           grep -q "versionCode='$WINCORE_VERSION_CODE'" <<< "$BADGING"
@@ -165,7 +228,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: WinCore-5.0.0
-          path: dist/WinCore-5.0.0.apk
+          name: WinCore-6.0.0
+          path: dist/WinCore-6.0.0.apk
           if-no-files-found: error
           retention-days: 14
