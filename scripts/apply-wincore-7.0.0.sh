@@ -260,7 +260,7 @@ replacement = '''    private void loadContainers(int selectedContainerId) {
     }
 
 '''
-s = s.slice(0,start)+replacement+s.slice(end);
+s = s[:start] + replacement + s[end:];
 s = s.replace('''        final Handler handler = new Handler();
         Executors.newSingleThreadExecutor().execute(() -> {
             final Container container = createContainer(data);
