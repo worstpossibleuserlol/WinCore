@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/branding/WinCore-README-banner.svg" alt="WinCore" width="100%" />
+</p>
+
 # WinCore
 
 WinCore is an independent community modification of [Winlator](https://github.com/brunodev85/winlator), an Android compatibility environment for running Windows applications and games with Wine and Box86/Box64.
@@ -10,7 +14,7 @@ WinCore adds configurable device profiles, per-container and per-game settings, 
 
 1. Open the [WinCore GitHub repository](https://github.com/worstpossibleuserlol/WinCore).
 2. Open **Actions** and select the successful build workflow for the version you want.
-3. Download the available APK artifact from the workflow run. The current 4.0.0 CI artifact is named `WinCore-4.0.0`.
+3. Download the available APK artifact from the workflow run. The current 5.0.0 CI artifact is named `WinCore-5.0.0`.
 4. Extract the downloaded ZIP file and locate the APK.
 5. Install the APK on your Android device. Android may ask you to allow installation from the app or browser you used to download it.
 6. Open WinCore and create or select a container.

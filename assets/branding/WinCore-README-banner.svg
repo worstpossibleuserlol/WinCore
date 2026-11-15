@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1536" height="523" viewBox="0 0 1536 523" role="img" aria-labelledby="title desc">
+  <title id="title">WinCore</title>
+  <desc id="desc">Green four-panel window mark beside the WinCore wordmark.</desc>
+  <rect width="1536" height="523" fill="#ffffff"/>
+  <defs>
+    <linearGradient id="frame" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9dca00"/>
+      <stop offset="0.52" stop-color="#8fbd00"/>
+      <stop offset="1" stop-color="#609500"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded alternating-corner frame from the supplied WinCore mark. -->
+  <path d="M28 18 H407 C466 18 507 47 507 96 V503 H107 C56 503 27 474 27 423 Z" fill="url(#frame)"/>
+  <path d="M59 49 H405 C447 49 474 70 474 108 V470 H108 C78 470 59 448 59 419 Z" fill="#ffffff"/>
+  <!-- Four-panel window symbol. -->
+  <rect x="85" y="77" width="170" height="169" fill="#98c900"/>
+  <path d="M280 77 H450 Q452 77 452 99 V246 H280 Z" fill="#98c900"/>
+  <path d="M280 246 L452 77 V246 Z" fill="#689b00"/>
+  <path d="M85 273 H255 V444 H108 Q85 444 85 421 Z" fill="#98c900"/>
+  <path d="M85 273 L255 273 V444 H85 Z" fill="#98c900"/>
+  <path d="M85 444 L255 273 V444 Z" fill="#689b00"/>
+  <rect x="280" y="273" width="172" height="171" fill="#689b00"/>
+  <!-- Wordmark. -->
+  <text x="590" y="338" fill="#050505" font-family="Arial, Helvetica, sans-serif" font-size="170" font-weight="700" letter-spacing="-5">WinCore</text>
+</svg>
