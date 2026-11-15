@@ -104,11 +104,12 @@ jobs:
           grep -q 'WinCoreSessionTracker.onSessionStart' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
           grep -q 'WinCoreSessionTracker.onSessionEnd' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
           test -s upstream/app/app/src/main/res/drawable-nodpi/wincore_logo.png
-          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-            test -s "upstream/app/app/src/main/res/mipmap-$density/ic_launcher.png"
-            test -s "upstream/app/app/src/main/res/mipmap-$density/ic_launcher_round.png"
-            test -s "upstream/app/app/src/main/res/mipmap-$density/ic_launcher_foreground.png"
-          done
+          test -s upstream/app/app/src/main/res/drawable-hdpi/logo.png
+          test -s upstream/app/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          test -s upstream/app/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
+          test -s upstream/app/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
+          grep -q 'android:roundIcon="@mipmap/ic_launcher_round"' upstream/app/app/src/main/AndroidManifest.xml
+          grep -q '@mipmap/ic_launcher_foreground' upstream/app/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
 
       - name: Build debug APK
         working-directory: upstream/app

@@ -22,14 +22,20 @@ mkdir -p "$APP_MODULE/src/main/java/com/winlator"
 cp "$OVERLAY/src/main/java/com/winlator/WinCoreCompatibilityCenterActivity.java" "$APP_MODULE/src/main/java/com/winlator/"
 cp "$OVERLAY/src/main/java/com/winlator/WinCoreSessionTracker.java" "$APP_MODULE/src/main/java/com/winlator/"
 
-# Replace the launcher artwork at every density, including Android adaptive icons.
-for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-  mkdir -p "$APP_MODULE/src/main/res/mipmap-$density"
-  cp "$BRANDING/ic_launcher_$density.png" "$APP_MODULE/src/main/res/mipmap-$density/ic_launcher.png"
-  cp "$BRANDING/ic_launcher_$density.png" "$APP_MODULE/src/main/res/mipmap-$density/ic_launcher_round.png"
-  cp "$BRANDING/ic_launcher_foreground_$density.png" "$APP_MODULE/src/main/res/mipmap-$density/ic_launcher_foreground.png"
-done
-mkdir -p "$APP_MODULE/src/main/res/drawable-nodpi" "$APP_MODULE/src/main/res/drawable-hdpi"
+# Unpack the exact supplied artwork prepared for Android launcher resources.
+mkdir -p "$BRANDING/generated"
+unzip -oq "$BRANDING/wincore-branding.zip" -d "$BRANDING/generated"
+BRANDING="$BRANDING/generated"
+
+# Keep a high-resolution legacy icon and a proper transparent adaptive foreground.
+# Android scales the xxxhdpi resources for lower-density pre-adaptive launchers.
+mkdir -p "$APP_MODULE/src/main/res/mipmap-xxxhdpi" \
+         "$APP_MODULE/src/main/res/mipmap-anydpi-v26" \
+         "$APP_MODULE/src/main/res/drawable-nodpi" \
+         "$APP_MODULE/src/main/res/drawable-hdpi"
+cp "$BRANDING/ic_launcher.png" "$APP_MODULE/src/main/res/mipmap-xxxhdpi/ic_launcher.png"
+cp "$BRANDING/ic_launcher.png" "$APP_MODULE/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png"
+cp "$BRANDING/ic_launcher_foreground.png" "$APP_MODULE/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png"
 cp "$BRANDING/wincore_logo.png" "$APP_MODULE/src/main/res/drawable-nodpi/wincore_logo.png"
 cp "$BRANDING/logo.png" "$APP_MODULE/src/main/res/drawable-hdpi/logo.png"
 
@@ -115,6 +121,10 @@ activity_decl = '''        <activity
 '''
 replace_once(manifest, activity_anchor, activity_decl + activity_anchor, "Compatibility Center Activity registration")
 
+replace_once(manifest, 'android:icon="@mipmap/ic_launcher"',
+    'android:icon="@mipmap/ic_launcher"' + chr(10) + '        android:roundIcon="@mipmap/ic_launcher_round"',
+    "round launcher icon attribute")
+
 # Wire the settings entry point to the new Activity.
 settings = app / "src/main/java/com/winlator/SettingsFragment.java"
 settings_anchor = '        preferences = PreferenceManager.getDefaultSharedPreferences(context);'
@@ -155,8 +165,9 @@ PY
 test -s "$APP_MODULE/src/main/java/com/winlator/WinCoreCompatibilityCenterActivity.java"
 test -s "$APP_MODULE/src/main/java/com/winlator/WinCoreSessionTracker.java"
 test -s "$APP_MODULE/src/main/res/drawable-nodpi/wincore_logo.png"
-for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-  test -s "$APP_MODULE/src/main/res/mipmap-$density/ic_launcher.png"
-  test -s "$APP_MODULE/src/main/res/mipmap-$density/ic_launcher_round.png"
-  test -s "$APP_MODULE/src/main/res/mipmap-$density/ic_launcher_foreground.png"
-done
+test -s "$APP_MODULE/src/main/res/drawable-hdpi/logo.png"
+test -s "$APP_MODULE/src/main/res/mipmap-xxxhdpi/ic_launcher.png"
+test -s "$APP_MODULE/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png"
+test -s "$APP_MODULE/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png"
+test -s "$APP_MODULE/src/main/res/mipmap-anydpi-v26/ic_launcher.xml"
+test -s "$APP_MODULE/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml"
