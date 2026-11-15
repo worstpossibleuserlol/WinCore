@@ -131,7 +131,7 @@ jobs:
             grep -Fq "$label" "$ACTIVITY"
           done
           ICON="assets/branding/wincore-user-icon.png"
-          echo "8e17c515a49fdff3700d82c1a21d4cf1728bd0e9855469e4fe346ae3198236db  $ICON" | sha256sum -c -
+          echo "d33dff197ab16e8acb49974d30a89786d8788486f7df8241917fc6ac254e9a8f  $ICON" | sha256sum -c -
           for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
             for icon_name in ic_launcher.png ic_launcher_round.png ic_launcher_foreground.png; do
               cmp -s "$ICON" "upstream/app/app/src/main/res/mipmap-$density/$icon_name"
