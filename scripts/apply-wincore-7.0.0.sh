@@ -298,6 +298,77 @@ anchor = 'manager = new ContainerManager(context);'
 if d.count(anchor) != 1: raise SystemExit("ContainerDetailFragment manager construction anchor changed")
 d = d.replace(anchor, 'manager = new ContainerManager(context, containerId);', 1)
 detail.write_text(d, encoding="utf-8")
+
+# Defer cloning user.reg until a write is requested; detail-screen reads stay read-only.
+registry = app / "src/main/java/com/winlator/core/WineRegistryEditor.java"
+w = registry.read_text(encoding="utf-8")
+w = w.replace("    private final File cloneFile;\\n", "    private File cloneFile;\\n    private boolean cloneCreated = false;\\n")
+old_ctor = '''    public WineRegistryEditor(File file) {
+        this.file = file;
+        cloneFile = FileUtils.createTempFile(file.getParentFile(), FileUtils.getBasename(file.getPath()));
+        if (!file.isFile()) {
+            try {
+                cloneFile.createNewFile();
+            }
+            catch (IOException e) {}
+        }
+        else FileUtils.copy(file, cloneFile);
+    }'''
+new_ctor = '''    public WineRegistryEditor(File file) {
+        this.file = file;
+        this.cloneFile = file;
+    }
+
+    private boolean ensureClone() {
+        if (cloneCreated) return true;
+        File temp = FileUtils.createTempFile(file.getParentFile(), FileUtils.getBasename(file.getPath()));
+        if (file.isFile()) {
+            if (!FileUtils.copy(file, temp)) {
+                temp.delete();
+                return false;
+            }
+        }
+        else {
+            try {
+                if (!temp.createNewFile() && !temp.isFile()) return false;
+            }
+            catch (IOException error) {
+                temp.delete();
+                return false;
+            }
+        }
+        cloneFile = temp;
+        cloneCreated = true;
+        return true;
+    }'''
+if old_ctor not in w: raise SystemExit("WineRegistryEditor constructor anchor not found")
+w = w.replace(old_ctor, new_ctor, 1)
+w = w.replace('''        if (modified && cloneFile.exists()) {
+            cloneFile.renameTo(file);
+        }
+        else cloneFile.delete();''','''        if (modified && cloneCreated && cloneFile.exists()) {
+            if (!cloneFile.renameTo(file)) {
+                android.util.Log.e("WineRegistryEditor", "Could not commit registry changes to " + file);
+            }
+        }
+        else if (cloneCreated) cloneFile.delete();''',1)
+w = w.replace('''    private Location createKey(String key) {
+        Location location''','''    private Location createKey(String key) {
+        if (!ensureClone()) return null;
+        Location location''',1)
+w = w.replace('''    private void setRawValue(String key, String name, String value) {
+        Location keyLocation''','''    private void setRawValue(String key, String name, String value) {
+        if (!ensureClone()) return;
+        Location keyLocation''',1)
+w = w.replace('''    private void setRawValues(String key, String[]... items) {
+        Location keyLocation''','''    private void setRawValues(String key, String[]... items) {
+        if (!ensureClone()) return;
+        Location keyLocation''',1)
+w = w.replace('''    private boolean removeRegion(Location location) {
+        char[] buffer''','''    private boolean removeRegion(Location location) {
+        if (!ensureClone()) return false;
+        char[] buffer''',1)
+registry.write_text(w, encoding="utf-8")
 PY
 
 cmp -s "$DRAWER_LOGO" "$APP_MODULE/src/main/res/drawable/logo.png"
