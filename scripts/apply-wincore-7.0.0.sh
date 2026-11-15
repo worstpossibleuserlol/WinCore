@@ -188,12 +188,12 @@ source = header.read_text(encoding="utf-8")
 if '@drawable/logo' not in source:
     raise SystemExit("Navigation drawer header no longer references @drawable/logo; review upstream layout.")
 if 'android:scaleType="fitCenter"' not in source:
-    source = source.replace('android:src="@drawable/logo"', 'android:src="@drawable/logo"\\n        android:adjustViewBounds="true"\\n        android:scaleType="fitCenter"')
+    source = source.replace('android:src="@drawable/logo"', 'android:src="@drawable/logo"\n        android:adjustViewBounds="true"\n        android:scaleType="fitCenter"')
 header.write_text(source, encoding="utf-8")
 
 manager = app / "src/main/java/com/winlator/container/ContainerManager.java"
 s = manager.read_text(encoding="utf-8")
-s = s.replace('import java.util.concurrent.Executors;', 'import java.util.concurrent.ExecutorService;\\nimport java.util.concurrent.Executors;\\nimport android.os.Looper;')
+s = s.replace('import java.util.concurrent.Executors;', 'import java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\nimport android.os.Looper;')
 old = '''    private final ArrayList<Container> containers = new ArrayList<>();
     private int maxContainerId = 0;
     private final File homeDir;
