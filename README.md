@@ -8,20 +8,20 @@ WinCore is an independent community modification of [Winlator](https://github.co
 
 WinCore extends Winlator on Android with per-container and per-game profiles, launch-safety options, session monitoring, profile sharing, and 100 Compatibility Center actions across game diagnostics, GTA IV file and log checks, graphics recommendations, device/resource monitoring, stability tools, and recovery workflows. It preserves Winlator's underlying Wine and Box86/Box64 runtime and existing container workflow.
 
-**Current version: 6.0.0**
+**Current version: 7.0.0**
 
 ## Installation
 
 1. Open the [WinCore GitHub repository](https://github.com/worstpossibleuserlol/WinCore).
 2. Open **Actions** and select the successful build workflow for the version you want.
-3. Download the available APK artifact from the workflow run. The current 6.0.0 CI artifact is named `WinCore-6.0.0`.
+3. Download the available APK artifact from the workflow run. The current 6.0.0 CI artifact is named `WinCore-7.0.0`.
 4. Extract the downloaded ZIP file and locate the APK.
 5. Install the APK on your Android device. Android may ask you to allow installation from the app or browser you used to download it.
 6. Open WinCore and create or select a container.
 
 The CI artifact is a **debug build**, not a production-signed release. The APK filename intentionally omits a `-debug` suffix, but that does not change its build type or signing status. Only install builds from a source you trust.
 
-## WinCore 6.0.0 Automation & Stability
+## WinCore 7.0.0 Container Performance & Branding
 
 WinCore 6.0.0 adds a second set of 50 Compatibility Center actions for per-game profiles, executable metadata, graphics capability inspection, DXVK/VKD3D environment-variable review, renderer/resolution presets, RAM and thermal sampling, resource readiness, stability/log analysis, diagnostic exports, recovery profiles, game categories, cover images, favorites, and a compact dashboard layout.
 
@@ -105,7 +105,7 @@ To build from source:
 git clone --recurse-submodules https://github.com/worstpossibleuserlol/WinCore.git
 cd WinCore
 bash scripts/apply-wincore-patch.sh
-bash scripts/apply-wincore-6.0.0.sh
+bash scripts/apply-wincore-7.0.0.sh
 cd upstream/app
 bash gradlew assembleDebug
 ```

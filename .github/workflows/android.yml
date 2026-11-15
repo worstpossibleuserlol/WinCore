@@ -15,8 +15,8 @@ jobs:
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-      WINCORE_VERSION: 6.0.0
-      WINCORE_VERSION_CODE: 60000
+      WINCORE_VERSION: 7.0.0
+      WINCORE_VERSION_CODE: 70000
     steps:
       - name: Checkout WinCore and upstream submodules
         uses: actions/checkout@v4
@@ -40,11 +40,11 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null
           "$SDKMANAGER" --install \
             "platforms;android-35" \
-            "build-tools;36.0.0" \
+            "build-tools;37.0.0" \
             "ndk;24.0.8215888" \
             "cmake;3.22.1"
 
-      - name: Apply WinCore 3.0.0 foundation with 6.0.0 version metadata
+      - name: Apply WinCore 3.0.0 foundation with 7.0.0 version metadata
         run: bash scripts/apply-wincore-patch.sh upstream "$WINCORE_VERSION"
 
       - name: Verify WinCore 3.0.0 features and container audit
@@ -76,7 +76,7 @@ jobs:
           grep -q 'WinCoreAppearance.apply' upstream/app/app/src/main/java/com/winlator/MainActivity.java
           grep -q 'wincore_ui_accent' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           grep -q 'wincore_ui_density' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
-          grep -q 'WinCore 6.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'WinCore 7.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCoreDeviceProfile.java
           grep -q 'setWinCoreDeviceProfile(selectedWinCoreProfile)' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
           grep -q 'wincore_cpu_profile' upstream/app/app/src/main/java/com/winlator/ContainerDetailFragment.java
@@ -88,14 +88,14 @@ jobs:
           grep -q 'Battery temperature:' upstream/app/app/src/main/java/com/winlator/WinCorePerformanceOverlay.java
           grep -q 'BTWinCoreShareProfile' upstream/app/app/src/main/res/layout/settings_fragment.xml
           grep -q 'wincore-profile-v1' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
-          grep -q 'WinCore 6.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'WinCore 7.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCoreProfileControls.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCorePerformanceOverlay.java
 
-      - name: Apply WinCore 6.0.0 automation, stability, About fixes, and branding
-        run: bash scripts/apply-wincore-6.0.0.sh
+      - name: Apply WinCore 7.0.0 features, container fixes, About fixes, and user-supplied drawer branding
+        run: bash scripts/apply-wincore-7.0.0.sh
 
-      - name: Verify WinCore 6.0.0 features, About dialog, text colors, and icon integrity
+      - name: Verify WinCore 7.0.0 features, About dialog, text colors, and icon integrity
         run: |
           set -euxo pipefail
           test -s upstream/app/app/src/main/java/com/winlator/WinCoreCompatibilityCenterActivity.java
@@ -201,6 +201,19 @@ jobs:
           grep -q 'android:roundIcon="@mipmap/ic_launcher_round"' upstream/app/app/src/main/AndroidManifest.xml
           grep -q '@mipmap/ic_launcher_foreground' upstream/app/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
 
+      - name: Verify WinCore 7.0.0 navigation branding and container fixes
+        run: |
+          set -euxo pipefail
+          test -s "assets/branding/WinCore To Replace WinLator Logo.png"
+          cmp -s "assets/branding/WinCore To Replace WinLator Logo.png" upstream/app/app/src/main/res/drawable/logo.png
+          grep -q 'android:src="@drawable/logo"' upstream/app/app/src/main/res/layout/main_menu_header.xml
+          grep -q 'android:scaleType="fitCenter"' upstream/app/app/src/main/res/layout/main_menu_header.xml
+          grep -q 'new ContainerManager(context, containerId)' upstream/app/app/src/main/java/com/winlator/ContainerDetailFragment.java
+          grep -q 'loadContainers(int selectedContainerId)' upstream/app/app/src/main/java/com/winlator/container/ContainerManager.java
+          grep -q 'Skipping unreadable container' upstream/app/app/src/main/java/com/winlator/container/ContainerManager.java
+          grep -q 'private static final ExecutorService IO_EXECUTOR' upstream/app/app/src/main/java/com/winlator/container/ContainerManager.java
+          ! grep -q 'Executors.newSingleThreadExecutor().execute' upstream/app/app/src/main/java/com/winlator/container/ContainerManager.java
+
       - name: Build debug APK
         working-directory: upstream/app
         run: bash gradlew --no-daemon --stacktrace assembleDebug
@@ -210,7 +223,7 @@ jobs:
           APK="upstream/app/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
           unzip -t "$APK"
-          AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          AAPT="$ANDROID_HOME/build-tools/37.0.0/aapt"
           BADGING="$("$AAPT" dump badging "$APK")"
           grep -q "package: name='com.wincore'" <<< "$BADGING"
           grep -q "versionCode='$WINCORE_VERSION_CODE'" <<< "$BADGING"
@@ -222,7 +235,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: WinCore-6.0.0
-          path: dist/WinCore-6.0.0.apk
+          name: WinCore-7.0.0
+          path: dist/WinCore-7.0.0.apk
           if-no-files-found: error
           retention-days: 14
