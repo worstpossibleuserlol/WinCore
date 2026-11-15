@@ -1,69 +1,73 @@
 # WinCore 7.0.0 — 50-feature implementation register
 
-This register tracks the 50 features proposed for WinCore 7.0.0. A feature is marked **implemented in source** only when code is added and the build workflow checks it. A successful build does not replace physical-device testing.
+This is the 50-feature list proposed for WinCore 7.0.0. Status is explicit: a feature is not marked complete merely because it appears in a roadmap or Compatibility Center label.
 
-## Implemented in the 7.0.0 source patch
+## Status by original feature number
 
-1. Selected-container configuration loading — implemented in source; only the selected container's JSON is parsed when opening its detail screen.
-2. Background container operation executor — implemented in source; create, duplicate, and remove share a managed executor.
-3. Main-thread completion callbacks — implemented in source for container create, duplicate, and remove.
-4. Per-container malformed-config isolation — implemented in source; an unreadable config no longer aborts scanning all containers.
-5. Invalid container-ID handling — implemented in source; non-numeric and non-positive IDs are skipped.
-6. Lazy Wine registry cloning — implemented in source; reading registry settings no longer copies the whole user.reg file. A temporary copy is created only when a write is requested.
-7. Exact user-supplied navigation drawer logo — implemented in source; copied to the upstream `drawable/logo.png` resource and checked byte-for-byte by CI.
-8. Logo aspect fitting — implemented in source; the drawer image uses fit-center scaling.
-9. Build-time drawer branding verification — implemented in CI.
-10. Container patch-anchor verification — implemented in CI.
-11. APK compilation and archive-integrity verification — implemented in CI.
+1. Instant container selection — **partially implemented**: opening an existing container now loads only that container's configuration, but directory enumeration is still synchronous.
+2. Background container loading — **not implemented**.
+3. Container metadata cache — **not implemented**.
+4. Smart cache invalidation — **not implemented**.
+5. Lazy tab loading — **not implemented**.
+6. Lazy registry access — **implemented in source**: registry reads use the original file; a temporary copy is created only when a write is requested.
+7. Asynchronous registry processing — **not implemented**.
+8. Loading progress indicator — **not implemented**.
+9. Corrupted-container isolation — **implemented in source**: one unreadable config is skipped without aborting the remaining scan.
+10. Atomic configuration saving — **not implemented**.
+11. Container search — **not implemented**.
+12. Custom sorting — **not implemented**.
+13. Favorite containers — **not implemented**.
+14. Recently opened containers — **not implemented**.
+15. Storage usage dashboard — **not implemented**.
+16. Complete container backup — **not implemented**.
+17. Verified container restoration — **not implemented**.
+18. Configuration snapshots — **not implemented**.
+19. Duplicate progress tracking — **not implemented**.
+20. Bulk backup management — **not implemented**.
+21. Pre-launch inspection — **not implemented**.
+22. Missing runtime detector — **not implemented**.
+23. Wine prefix health check — **not implemented**.
+24. Per-session log collection — **not implemented**.
+25. Crash report analyzer — **not implemented**.
+26. Safe launch mode — **not implemented**.
+27. Custom executable arguments — **not implemented as a new 7.0.0 feature**.
+28. Configuration comparison — **not implemented as a new 7.0.0 feature**.
+29. Shader cache manager — **not implemented**.
+30. Game compatibility catalogue — **not implemented**.
+31. Controller-first navigation — **not implemented**.
+32. Quick container actions — **not implemented**.
+33. Game library search — **not implemented**.
+34. Game categories — **not implemented as a new 7.0.0 feature**.
+35. Custom game artwork — **not implemented as a new 7.0.0 feature**.
+36. Recently played games screen — **not implemented as a new 7.0.0 feature**.
+37. Improved contextual error messages — **partially implemented** for container config read failures; other errors still need work.
+38. Accessibility improvements — **not implemented**.
+39. Tablet layout — **not implemented**.
+40. Advanced settings search — **not implemented**.
+41. Automatic configuration backups — **not implemented**.
+42. Configuration rollback — **not implemented**.
+43. Container migration assistant — **not implemented**.
+44. Storage cleanup assistant — **not implemented**.
+45. Container permission repair — **not implemented**.
+46. Upstream compatibility checker — **not implemented**.
+47. Automated container tests — **not implemented as runtime tests**.
+48. Automated UI tests — **not implemented**.
+49. APK regression testing — **partially implemented** through CI source assertions, compilation, package metadata, and archive checks.
+50. Build diagnostics report — **partially implemented** through GitHub Actions build logs; no in-app report exporter is added here.
 
-## Remaining proposed features — not yet implemented
+## Additional 7.0.0 bug fixes outside the 50-feature list
 
-12. Container metadata cache.
-13. Smart cache invalidation.
-14. Lazy tab initialization.
-15. Lazy Wine registry access.
-16. Asynchronous Wine registry processing.
-17. Container-opening progress indicator.
-18. Atomic configuration saving.
-18. Container search.
-19. Custom container sorting.
-20. Favorite containers.
-21. Recently opened containers.
-22. Per-container storage dashboard.
-23. Complete container backup.
-24. Verified container restoration.
-25. Configuration snapshots.
-26. Duplicate progress tracking.
-27. Bulk backup management.
-28. Pre-launch readiness inspection.
-29. Missing runtime detector.
-30. Wine prefix health check.
-31. Per-session log collection.
-32. Crash report analyzer.
-33. Safe launch mode.
-34. Custom executable arguments UI.
-35. Configuration comparison UI.
-36. Shader cache manager.
-37. Local game compatibility catalogue.
-38. Controller-first navigation.
-39. Quick container actions.
-40. Game library search.
-41. Game categories.
-42. Custom game artwork.
-43. Recently played game screen.
-44. Improved contextual error messages.
-45. Accessibility and focus-navigation audit.
-46. Tablet-specific layout.
-47. Advanced settings search.
-48. Automatic configuration backups.
-49. Configuration rollback UI.
-50. Container migration assistant.
+- Container create, duplicate, and remove now share a single background executor instead of creating an unclosed executor for every operation.
+- Completion callbacks for these operations are posted to the main thread and are run after operation failures as well.
+
+## Branding correction
+
+The exact user-supplied `assets/branding/WinCore To Replace WinLator Logo.png` file is installed as the navigation drawer's `drawable/logo.png`, not as the launcher icon. CI compares the copied image byte-for-byte with the supplied file.
 
 ## Verification still required
 
-- Test opening small and large containers on physical Android devices.
-- Test multiple containers where one config is malformed.
+- Build success does not prove container-opening speed on the user's phone.
+- Test opening small and large containers and verify settings can still be edited and saved.
+- Test multiple containers with one malformed config.
 - Test create, duplicate, and remove operations repeatedly.
-- Verify container settings remain editable and save correctly.
-- Verify the drawer logo visually on phone and tablet layouts.
-- Confirm no unwanted Winlator logos remain in other screens.
+- Visually inspect the drawer on device and search other screens for remaining Winlator branding.
