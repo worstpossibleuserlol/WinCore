@@ -2,38 +2,74 @@
 
 WinCore is an independent community modification of [Winlator](https://github.com/brunodev85/winlator), an Android compatibility environment for running Windows applications and games with Wine and Box86/Box64.
 
-## Version 3.0.0 — release
+WinCore adds configurable device profiles, per-container and per-game settings, launch safety options, session monitoring, profile sharing, and other quality-of-life tools while preserving the core Winlator workflow.
 
-WinCore 3.0.0 expands automatic device profiles into a layered system that can be configured globally, per container, and per game shortcut. It adds user-configurable Box64 mappings, optional launch safety, an optional live session monitor, and profile sharing.
+**Current version: 3.0.0**
 
-### Device profiles
+## Installation
 
-- Automatic detection uses Android SoC, board, hardware, bootloader, and product identifiers. Manufacturer alone is not treated as sufficient evidence.
-- Global profile choices: Automatic, Dimensity, Snapdragon, and Exynos.
-- Per-container and per-shortcut overrides: Inherit global, Automatic detection, Dimensity, Snapdragon, and Exynos.
-- Precedence is per-game shortcut, then container, then global profile.
-- Each family can map to any installed Box64 preset, including custom presets.
-- Unknown chipsets fall back to the saved container preset.
-- Adaptive launch safety, when enabled, chooses the Stability preset for Android low-memory conditions or severe thermal status. It is evaluated at program launch; it does not dynamically rewrite a running game's environment.
+1. Open the [WinCore GitHub repository](https://github.com/worstpossibleuserlol/WinCore).
+2. Open **Actions** and select the successful build workflow for the version you want.
+3. Download the available APK artifact from the workflow run. The current 3.0.0 CI artifact is named `WinCore-3.0.0-release-debug`.
+4. Extract the downloaded ZIP file and locate the APK.
+5. Install the APK on your Android device. Android may ask you to allow installation from the app or browser you used to download it.
+6. Open WinCore and create or select a container.
 
-### Session monitoring
+The CI artifact is a **debug build**, not a production-signed release. Only install builds from a source you trust.
 
-- Optional in-game overlay reports app CPU time usage, app PSS memory, available system RAM, battery temperature, and Android thermal status.
-- The monitor is opt-in and stops updating when its view is detached.
-- GPU utilization is displayed as unavailable because a portable public Android API does not expose it consistently.
+## Useful Tips
 
-### Profile and UI customization
+- Start with Automatic device detection if you are unsure which device profile to use.
+- Change one graphics, driver, or Box64 setting at a time so you can identify which change affects compatibility.
+- Use the per-container or per-game profile options when a setting helps one game but causes problems in another.
+- Back up important containers and game data before making major changes.
+- Keep enough free storage for the game, container files, shader caches, and temporary data.
+- Close demanding background apps if Android is reporting low memory.
+- Monitor temperature during long sessions and allow the device to cool if it becomes unusually hot.
+- Record the settings that work for each game; different games can need different configurations.
+- Not every Windows game is compatible with every Android device. Performance depends on the device, drivers, game, and configuration.
 
-- Share a JSON profile containing family-to-Box64 mappings, selected global family, adaptive-launch setting, monitor setting, and appearance preferences.
-- Existing accent colors and Compact / Standard / Large interface text sizing remain.
-- Reset appearance returns the accent color and text sizing to defaults.
-- Existing Winlator settings, containers, shortcuts, CPU affinity, renderers, controllers, and per-game overrides remain in place.
+## Troubleshooting
 
-### Compatibility limits
+### The APK will not install
+- Make sure the ZIP artifact has been extracted and that you are opening the APK, not the ZIP file.
+- Check that the APK download completed successfully.
+- Android may require permission for the browser or file manager to install apps.
+- If Android reports a package or signature conflict, check whether another build of the same app is already installed. Back up anything important before changing installations.
 
-The 100-item [feature register](FEATURES.md) includes new WinCore features and existing Winlator capabilities preserved by this fork; it is not a claim of 100 new engine changes in 3.0.0. The family-to-Box64 mapping is user-configurable and does not claim benchmark-proven optimization. Device family detection may return Unknown on devices that do not expose recognizable Android build identifiers. Adaptive launch checks only Android's system low-memory and thermal status. The optional monitor reports metrics exposed by Android; it does not invent GPU utilization or per-game FPS. Existing container audits validate saved configuration and file presence, not whether a game launches correctly.
+### WinCore opens but a game does not launch
+- Confirm that the container is configured and that the game files are present.
+- Check the selected Wine version, graphics settings, Box64 preset, and device profile.
+- Restore the last known working settings if the issue began after a configuration change.
+- Check the available logs and diagnostic information before changing several settings at once.
+
+### A game crashes or performs poorly
+- Test a conservative/stability-oriented configuration first.
+- Reduce demanding in-game graphics options where available.
+- Check Android memory and thermal conditions.
+- Try a different supported graphics or Box64 configuration only when you can compare the result against the previous settings.
+
+### A device profile is detected as Unknown
+- Some Android devices do not expose chipset identifiers in a format that can be recognized reliably.
+- Use the manual profile or saved container preset instead of assuming the automatic result is correct.
+
+### The session monitor does not show GPU usage or FPS
+- The monitor reports metrics exposed by Android, such as app CPU time, memory, battery temperature, and thermal status.
+- GPU utilization and per-game FPS are not reported when the required reliable system data is unavailable.
+
+If the problem continues, open an issue in the repository and include your Android device model, WinCore version, container configuration, the steps to reproduce the problem, and relevant logs. Remove personal information from logs before sharing them.
+
+## Credits
+
+- **Winlator project and upstream contributors** — WinCore is based on the open-source [Winlator project](https://github.com/brunodev85/winlator).
+- **WinCore contributors** — for the community modifications, integration, documentation, testing, and maintenance.
+- **Open-source libraries and tools** — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the upstream project for applicable licenses and notices.
+
+WinCore is an independent community project. It is not affiliated with, endorsed by, or an official release of the Winlator project.
 
 ## Build
+
+To build from source:
 
 ```bash
 git clone --recurse-submodules https://github.com/worstpossibleuserlol/WinCore.git
@@ -47,6 +83,9 @@ The Android build requires JDK 17, Android SDK Platform 35, NDK 24.0.8215888, an
 
 GitHub Actions builds and validates the debug APK and uploads it as the **WinCore-3.0.0-release-debug** artifact.
 
-## Upstream and licensing
+## More Information
 
-WinCore uses the Winlator source as a Git submodule pinned to a specific upstream commit. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the upstream [Winlator repository](https://github.com/brunodev85/winlator) for source and license information. WinCore is an independent community project, not an official Winlator release.
+- [Feature register](FEATURES.md)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
+- [WinCore repository](https://github.com/worstpossibleuserlol/WinCore)
+- [Upstream Winlator repository](https://github.com/brunodev85/winlator)
