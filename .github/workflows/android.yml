@@ -15,8 +15,8 @@ jobs:
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-      WINCORE_VERSION: 2.0.0
-      WINCORE_VERSION_CODE: 20000
+      WINCORE_VERSION: 3.0.0
+      WINCORE_VERSION_CODE: 30000
     steps:
       - name: Checkout WinCore and upstream submodules
         uses: actions/checkout@v4
@@ -44,10 +44,10 @@ jobs:
             "ndk;24.0.8215888" \
             "cmake;3.22.1"
 
-      - name: Apply WinCore branding and extended container validation
+      - name: Apply WinCore 3.0.0 profiles, monitoring, and UI controls
         run: bash scripts/apply-wincore-patch.sh upstream "$WINCORE_VERSION"
 
-      - name: Verify diagnostics and stable container audit
+      - name: Verify WinCore 3.0.0 features and container audit
         run: |
           grep -q 'BTRefreshWinCoreDiagnostics' upstream/app/app/src/main/res/layout/settings_fragment.xml
           grep -q 'BTShareWinCoreDiagnostics' upstream/app/app/src/main/res/layout/settings_fragment.xml
@@ -68,16 +68,28 @@ jobs:
           grep -q 'buildWinCoreContainerAuditWithSummary' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           grep -q 'rootFS != null && rootFS.isValid()' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           grep -q 'audit could not complete safely; saved data may be malformed' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
-          grep -q 'WinCoreDeviceProfile.resolveBox64Preset(context, box64Preset)' upstream/app/app/src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java
+          grep -q 'WinCoreDeviceProfile.resolveBox64Preset(context, box64Preset, winCoreDeviceProfile)' upstream/app/app/src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java
           grep -q 'SWinCoreDeviceProfile' upstream/app/app/src/main/res/layout/settings_fragment.xml
           grep -q 'CPVWinCoreAccent' upstream/app/app/src/main/res/layout/settings_fragment.xml
           grep -q 'SWinCoreUIDensity' upstream/app/app/src/main/res/layout/settings_fragment.xml
           grep -q 'WinCoreAppearance.apply' upstream/app/app/src/main/java/com/winlator/MainActivity.java
           grep -q 'wincore_ui_accent' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           grep -q 'wincore_ui_density' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
-          grep -q 'WinCore 2.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'WinCore 3.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCoreDeviceProfile.java
-          test -s upstream/app/app/src/main/java/com/winlator/WinCoreAppearance.java
+          grep -q 'setWinCoreDeviceProfile(selectedWinCoreProfile)' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
+          grep -q 'wincore_cpu_profile' upstream/app/app/src/main/java/com/winlator/ContainerDetailFragment.java
+          grep -q 'wincore_cpu_profile' upstream/app/app/src/main/java/com/winlator/contentdialog/ShortcutSettingsDialog.java
+          grep -q 'wincore_box64_preset_dimensity' upstream/app/app/src/main/java/com/winlator/WinCoreDeviceProfile.java
+          grep -q 'wincore_adaptive_launch' upstream/app/app/src/main/java/com/winlator/WinCoreDeviceProfile.java
+          grep -q 'THERMAL_STATUS_SEVERE' upstream/app/app/src/main/java/com/winlator/WinCoreDeviceProfile.java
+          grep -q 'new WinCorePerformanceOverlay(this)' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
+          grep -q 'Battery temperature:' upstream/app/app/src/main/java/com/winlator/WinCorePerformanceOverlay.java
+          grep -q 'BTWinCoreShareProfile' upstream/app/app/src/main/res/layout/settings_fragment.xml
+          grep -q 'wincore_profile-v1' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          grep -q 'WinCore 3.0.0 compatibility report' upstream/app/app/src/main/java/com/winlator/SettingsFragment.java
+          test -s upstream/app/app/src/main/java/com/winlator/WinCoreProfileControls.java
+          test -s upstream/app/app/src/main/java/com/winlator/WinCorePerformanceOverlay.java
 
       - name: Build debug APK
         working-directory: upstream/app
@@ -95,12 +107,12 @@ jobs:
           grep -q "versionName='$WINCORE_VERSION'" <<< "$BADGING"
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           mkdir -p dist
-          cp "$APK" "dist/WinCore-$WINCORE_VERSION-debug.apk"
+          cp "$APK" "dist/WinCore-$WINCORE_VERSION-release-debug.apk"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: WinCore-2.0.0-debug
-          path: dist/WinCore-2.0.0-debug.apk
+          name: WinCore-3.0.0-release-debug
+          path: dist/WinCore-3.0.0-release-debug.apk
           if-no-files-found: error
           retention-days: 14

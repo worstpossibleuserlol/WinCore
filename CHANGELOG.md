@@ -1,34 +1,36 @@
 # Changelog
 
+## 3.0.0 — release
+
+- Added per-container and per-game CPU device profile override controls.
+- Added profile precedence: shortcut, container, global.
+- Added configurable Box64 preset mappings for Dimensity, Snapdragon, and Exynos.
+- Added safer SoC-family detection using Android hardware/board/product identifiers.
+- Added adaptive launch safety for Android low-memory and severe thermal conditions.
+- Added optional live session overlay for app CPU time, app PSS, available system RAM, battery temperature, and thermal status.
+- Added JSON profile sharing.
+- Added appearance reset.
+- Retained global automatic/manual profile selection, accent color, text sizing, container audit, and diagnostics.
+- Set Android versionName to 3.0.0 and versionCode to 30000.
+
 ## 2.0.0
 
-- Added automatic chipset-family detection for common Dimensity, Snapdragon, and Exynos identifiers.
-- Added Automatic, Dimensity, Snapdragon, and Exynos profile choices in the existing Winlator Settings screen.
-- Applied the selected profile at every guest-program launch through the real Box64 environment setup path.
-- Preserved the selected container's saved Box64 preset when device detection returns an unknown family.
-- Added app-wide accent color customization with eight selectable colors.
-- Added Compact, Standard, and Large interface text sizing.
-- Reapplied appearance settings on activity resume and fragment view creation.
-- Kept existing Winlator containers, shortcuts, settings, and controller navigation.
-- Retained read-only device, storage, graphics capability, and container compatibility diagnostics.
-- Set Android versionName to 2.0.0 and versionCode to 20000.
-- Documented that the family-to-preset mapping is a baseline and is not benchmark-verified.
+- Added automatic chipset-family detection and launch-time Box64 preset selection.
+- Added manual Automatic, Dimensity, Snapdragon, and Exynos choices.
+- Added app-wide accent color and interface text density customization.
 
 ## 1.0.0
 
-- Isolated each container audit with its own error boundary so one malformed saved container does not stop the remaining checks.
-- Safely handled a missing RootFS object.
-- Retained the aggregate container audit summary and earlier diagnostics.
-- Kept the audit read-only.
+- Isolated each container audit with its own error boundary.
+- Added aggregate container audit summary and retained earlier diagnostics.
 
 ## 0.9.0
 
-- Added aggregate container audit summary counts for checked, clean, review-needed containers, and findings.
+- Added aggregate container audit summary.
 
 ## 0.8.0
 
-- Added mapped host path existence and readability checks per saved drive mapping.
-- Reported drive letters and statuses without exposing full host paths.
+- Added mapped host path existence and readability checks.
 
 ## 0.7.0
 
@@ -36,4 +38,4 @@
 
 ## 0.6.0
 
-- Added read-only structural checks for RootFS, container configuration, Wine prefix, Wine binary, Box64 preset, renderer identifiers, and DirectX wrapper selection.
+- Added read-only RootFS, container, Wine prefix, Wine binary, Box64 preset, renderer, and DirectX wrapper checks.
