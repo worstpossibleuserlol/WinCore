@@ -378,7 +378,19 @@ public final class WinCoreSevenActivity extends Activity {
                 setStatus("loaded " + containers.size() + " container(s); isolated " + scanErrors.size() + " unreadable folder(s).");
                 if (preferences.getBoolean("automatic_backups", false)) {
                     io.execute(() -> {
-                        for (ContainerRecord record : found) createSnapshot(record, "automatic-open");
+                        ArrayList<String> snapshotErrors = new ArrayList<>();
+                        for (ContainerRecord record : found) {
+                            try {
+                                createSnapshot(record, "automatic-open");
+                            }
+                            catch (Exception error) {
+                                snapshotErrors.add(record.name + ": " + safeMessage(error));
+                            }
+                        }
+                        if (!snapshotErrors.isEmpty()) {
+                            final String summary = String.join("; ", snapshotErrors);
+                            main.post(() -> setStatus("some automatic snapshots could not be created: " + summary));
+                        }
                     });
                 }
             });
@@ -625,7 +637,17 @@ public final class WinCoreSevenActivity extends Activity {
             progress.setIndeterminate(true);
             setStatus("creating verified backup archive…");
             io.execute(() -> {
-                OutputStream destination = getContentResolver().openOutputStream(uri);
+                OutputStream destination;
+                try {
+                    destination = getContentResolver().openOutputStream(uri);
+                }
+                catch (Exception error) {
+                    main.post(() -> {
+                        progress.setVisibility(View.GONE);
+                        showError("Backup failed", error);
+                    });
+                    return;
+                }
                 if (destination == null) {
                     main.post(() -> { progress.setVisibility(View.GONE); setStatus("backup failed: the document provider did not open the destination."); });
                     return;
@@ -1114,11 +1136,11 @@ public final class WinCoreSevenActivity extends Activity {
     private void toggleSafeLaunch() {
         ContainerRecord record = requireSelected();
         if (record == null) { setStatus("select a container first."); return; }
-        JSONObject json = new JSONObject(record.data.toString());
-        JSONObject extras = json.optJSONObject("extraData");
-        if (extras == null) extras = new JSONObject();
-        boolean enabled = extras.optBoolean("wincoreSafeLaunch", false);
         try {
+            JSONObject json = new JSONObject(record.data.toString());
+            JSONObject extras = json.optJSONObject("extraData");
+            if (extras == null) extras = new JSONObject();
+            boolean enabled = extras.optBoolean("wincoreSafeLaunch", false);
             if (!enabled) {
                 extras.put("wincorePreviousBox64Preset", json.optString("box64Preset", Box64Preset.DEFAULT));
                 json.put("box64Preset", Box64Preset.STABILITY);
