@@ -7,7 +7,7 @@ UPSTREAM_DIR="$REPO_ROOT/upstream"
 APP_MODULE="$UPSTREAM_DIR/app/app"
 OVERLAY="$REPO_ROOT/overlay"
 BRANDING="$REPO_ROOT/assets/branding"
-ICON="$BRANDING/wincore-user-icon.png"
+ICON="$BRANDING/wincore-previous-icon.png"
 VERSION="$(cat "$REPO_ROOT/VERSION")"
 
 if [[ ! -f "$APP_MODULE/build.gradle" || ! -f "$APP_MODULE/src/main/AndroidManifest.xml" ]]; then
@@ -29,17 +29,28 @@ cp "$OVERLAY/src/main/res/layout/about_dialog.xml" "$APP_MODULE/src/main/res/lay
 mkdir -p "$APP_MODULE/src/main/res/drawable"
 cp "$OVERLAY/src/main/res/drawable/wincore_about_logo.xml" "$APP_MODULE/src/main/res/drawable/"
 
-# Use the exact user-supplied WinCore icon/logo file, not a generated substitute.
+# Restore the previous WinCore launcher artwork. Keep it centered inside
+# Android's launcher safe area instead of stretching a full-bleed image.
 if [[ ! -s "$ICON" ]]; then
-  echo "Required user-supplied logo missing: $ICON"
+  echo "Previous WinCore launcher icon missing: $ICON"
+  exit 1
+fi
+if ! command -v convert >/dev/null 2>&1; then
+  echo "ImageMagick is required to generate correctly sized launcher assets."
   exit 1
 fi
 
+declare -A ICON_SIZES=([mdpi]=48 [hdpi]=72 [xhdpi]=96 [xxhdpi]=144 [xxxhdpi]=192)
 for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-  mkdir -p "$APP_MODULE/src/main/res/mipmap-$density"
-  for icon_name in ic_launcher.png ic_launcher_round.png ic_launcher_foreground.png; do
-    cp "$ICON" "$APP_MODULE/src/main/res/mipmap-$density/$icon_name"
+  size="${ICON_SIZES[$density]}"
+  dir="$APP_MODULE/src/main/res/mipmap-$density"
+  mkdir -p "$dir"
+  # Legacy and round icons get a modest inset; adaptive foreground gets
+  # Android's conservative 66% safe-zone inset to prevent oversized artwork.
+  for icon_name in ic_launcher.png ic_launcher_round.png; do
+    convert "$ICON" -resize 72%x72% -gravity center -background none -extent "${size}x${size}" "$dir/$icon_name"
   done
+  convert "$ICON" -resize 66%x66% -gravity center -background none -extent "${size}x${size}" "$dir/ic_launcher_foreground.png"
 done
 
 mkdir -p "$APP_MODULE/src/main/res/mipmap-anydpi-v26" \
@@ -407,11 +418,14 @@ fi
 grep -q 'setTextColor(0xffffffff)' "$COMPAT"
 grep -q 'setHintTextColor(0xffb8c0c8)' "$COMPAT"
 
-# Verify every launcher density and visible logo is byte-for-byte identical to the supplied asset.
+# Verify all launcher density outputs are square and use the expected Android sizes.
+declare -A EXPECTED_ICON_SIZES=([mdpi]=48 [hdpi]=72 [xhdpi]=96 [xxhdpi]=144 [xxxhdpi]=192)
 for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+  expected="${EXPECTED_ICON_SIZES[$density]}x${EXPECTED_ICON_SIZES[$density]}"
   for icon_name in ic_launcher.png ic_launcher_round.png ic_launcher_foreground.png; do
-    cmp -s "$ICON" "$APP_MODULE/src/main/res/mipmap-$density/$icon_name"
+    actual="$(identify -format '%wx%h' "$APP_MODULE/src/main/res/mipmap-$density/$icon_name")"
+    [[ "$actual" == "$expected" ]] || { echo "Bad launcher size: $density/$icon_name is $actual"; exit 1; }
   done
 done
-# Launcher icon checks are intentionally limited to mipmap resources.
-# The About dialog uses its own charcoal-background WinCore logo drawable.
+# Launcher resources are density-specific and padded; the About and drawer
+# logos remain independent assets.

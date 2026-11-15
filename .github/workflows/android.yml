@@ -32,6 +32,8 @@ jobs:
 
       - name: Install Android build components
         run: |
+          sudo apt-get update
+          sudo apt-get install -y imagemagick
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
           if [[ -z "$SDKMANAGER" ]]; then
             echo "Android SDK manager was not found under $ANDROID_HOME"
@@ -191,11 +193,18 @@ jobs:
             "50  Compatibility Center 2.0 dashboard"; do
             grep -Fq "$label" "$COMPAT"
           done
-          ICON="assets/branding/wincore-user-icon.png"
-          echo "53ab7c3aedc3e2b1bb729c6d7a94b7d9587196f9a368c96de342b583daf175b2  $ICON" | sha256sum -c -
+          ICON="assets/branding/wincore-previous-icon.png"
+          test -s "$ICON"
           for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            case "$density" in
+              mdpi) SIZE=48 ;;
+              hdpi) SIZE=72 ;;
+              xhdpi) SIZE=96 ;;
+              xxhdpi) SIZE=144 ;;
+              xxxhdpi) SIZE=192 ;;
+            esac
             for icon_name in ic_launcher.png ic_launcher_round.png ic_launcher_foreground.png; do
-              cmp -s "$ICON" "upstream/app/app/src/main/res/mipmap-$density/$icon_name"
+              test "$(identify -format '%wx%h' "upstream/app/app/src/main/res/mipmap-$density/$icon_name")" = "${SIZE}x${SIZE}"
             done
           done
           grep -q 'android:roundIcon="@mipmap/ic_launcher_round"' upstream/app/app/src/main/AndroidManifest.xml
