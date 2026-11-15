@@ -193,7 +193,7 @@ jobs:
             "50  Compatibility Center 2.0 dashboard"; do
             grep -Fq "$label" "$COMPAT"
           done
-          ICON="assets/branding/wincore-previous-icon.png"
+          ICON="assets/branding/old-launcher-icon.png"
           test -s "$ICON"
           for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
             case "$density" in
@@ -213,8 +213,8 @@ jobs:
       - name: Verify WinCore 7.0.0 navigation branding and container fixes
         run: |
           set -euxo pipefail
-          test -s "assets/branding/WinCore To Replace WinLator Logo.png"
-          cmp -s "assets/branding/WinCore To Replace WinLator Logo.png" upstream/app/app/src/main/res/drawable/logo.png
+          test -s "assets/branding/wincorebanner.png"
+          cmp -s "assets/branding/wincorebanner.png" upstream/app/app/src/main/res/drawable/logo.png
           grep -q 'android:src="@drawable/logo"' upstream/app/app/src/main/res/layout/main_menu_header.xml
           grep -q 'android:scaleType="fitCenter"' upstream/app/app/src/main/res/layout/main_menu_header.xml
           grep -q 'new ContainerManager(context, containerId)' upstream/app/app/src/main/java/com/winlator/ContainerDetailFragment.java
