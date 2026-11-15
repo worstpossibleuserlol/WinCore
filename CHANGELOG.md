@@ -8,7 +8,7 @@
 - Added pre-change profile snapshots and a conservative recovery profile flow; these save WinCore profile recommendations and do not directly rewrite the active Winlator container.
 - Changed Compatibility Center EditText inputs to white entered text with light-gray hint text for readability in the dark UI.
 - Removed the old Winlator website row from the About dialog.
-- Replaced only the About dialog's top-right image with a dedicated green-on-charcoal WinCore About drawable; left the launcher icon resources untouched.
+- Replaced only the About dialog's top-right image with the dedicated green-on-charcoal WinCore logo drawable matching the supplied reference; kept the launcher app icon separate and stopped copying it into generic upstream logo.png resources.
 - Updated Android versionName to 6.0.0 and versionCode to 60000.
 
 ### Verification limits

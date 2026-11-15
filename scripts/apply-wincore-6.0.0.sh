@@ -43,15 +43,11 @@ for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
 done
 
 mkdir -p "$APP_MODULE/src/main/res/mipmap-anydpi-v26" \
-         "$APP_MODULE/src/main/res/drawable-nodpi" \
-         "$APP_MODULE/src/main/res/drawable-hdpi"
-cp "$ICON" "$APP_MODULE/src/main/res/drawable-nodpi/wincore_logo.png"
-cp "$ICON" "$APP_MODULE/src/main/res/drawable-hdpi/logo.png"
-
-# Replace upstream project logo files and any app resource logo.png files.
-if [[ -f "$UPSTREAM_DIR/logo.png" ]]; then cp "$ICON" "$UPSTREAM_DIR/logo.png"; fi
-if [[ -f "$UPSTREAM_DIR/app/logo.png" ]]; then cp "$ICON" "$UPSTREAM_DIR/app/logo.png"; fi
-find "$APP_MODULE/src/main/res" -type f -name 'logo.png' -exec cp "$ICON" {} \;
+         "$APP_MODULE/src/main/res/drawable-nodpi"
+# Keep the launcher icon and the in-app About logo as separate assets.
+# The user-supplied charcoal-background mark is represented by the dedicated
+# wincore_about_logo vector drawable below; do not copy the launcher icon into
+# generic logo.png resources or overwrite upstream logo files.
 
 cat > "$APP_MODULE/src/main/res/values/wincore_icon_colors.xml" <<'XML'
 <?xml version="1.0" encoding="utf-8"?>
@@ -178,8 +174,7 @@ PY
 # Verify the exact branding and Activity files exist before Gradle starts.
 test -s "$APP_MODULE/src/main/java/com/winlator/WinCoreCompatibilityCenterActivity.java"
 test -s "$APP_MODULE/src/main/java/com/winlator/WinCoreSessionTracker.java"
-test -s "$APP_MODULE/src/main/res/drawable-nodpi/wincore_logo.png"
-test -s "$APP_MODULE/src/main/res/drawable-hdpi/logo.png"
+test -s "$APP_MODULE/src/main/res/drawable/wincore_about_logo.xml"
 test -s "$APP_MODULE/src/main/res/mipmap-xxxhdpi/ic_launcher.png"
 test -s "$APP_MODULE/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png"
 test -s "$APP_MODULE/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png"
@@ -212,7 +207,5 @@ for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
     cmp -s "$ICON" "$APP_MODULE/src/main/res/mipmap-$density/$icon_name"
   done
 done
-cmp -s "$ICON" "$APP_MODULE/src/main/res/drawable-nodpi/wincore_logo.png"
-cmp -s "$ICON" "$APP_MODULE/src/main/res/drawable-hdpi/logo.png"
-if [[ -f "$UPSTREAM_DIR/logo.png" ]]; then cmp -s "$ICON" "$UPSTREAM_DIR/logo.png"; fi
-if [[ -f "$UPSTREAM_DIR/app/logo.png" ]]; then cmp -s "$ICON" "$UPSTREAM_DIR/app/logo.png"; fi
+# Launcher icon checks are intentionally limited to mipmap resources.
+# The About dialog uses its own charcoal-background WinCore logo drawable.
