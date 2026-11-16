@@ -7,7 +7,7 @@ UPSTREAM_DIR="$REPO_ROOT/upstream"
 APP_MODULE="$UPSTREAM_DIR/app/app"
 OVERLAY="$REPO_ROOT/overlay"
 BRANDING="$REPO_ROOT/assets/branding"
-ICON="$BRANDING/old-launcher-icon.png"
+ICON="$BRANDING/wincore-app-icon.png"
 VERSION="$(cat "$REPO_ROOT/VERSION")"
 
 if [[ ! -f "$APP_MODULE/build.gradle" || ! -f "$APP_MODULE/src/main/AndroidManifest.xml" ]]; then
@@ -40,8 +40,8 @@ if ! identify -regard-warnings "$ICON" >/dev/null 2>&1; then
   echo "Launcher icon is not a valid readable image: $ICON"
   exit 1
 fi
-if [[ "$(identify -format '%wx%h' "$ICON")" != "1400x1400" ]]; then
-  echo "Expected a 1400x1400 launcher icon; got $(identify -format '%wx%h' "$ICON")."
+if [[ "$(identify -format '%wx%h' "$ICON")" != "512x512" ]]; then
+  echo "Expected a 512x512 launcher icon; got $(identify -format '%wx%h' "$ICON")."
   exit 1
 fi
 if ! command -v convert >/dev/null 2>&1; then
