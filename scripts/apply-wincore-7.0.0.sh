@@ -940,3 +940,51 @@ grep -q 'Android could not list container directory:' "$APP_MODULE/src/main/java
 grep -q 'public ArrayList<String> getLoadWarnings()' "$APP_MODULE/src/main/java/com/winlator/container/ContainerManager.java"
 grep -q 'Tap here to scan again.' "$APP_MODULE/src/main/java/com/winlator/ContainersFragment.java"
 grep -q 'Could not close RootFS progress dialog' "$APP_MODULE/src/main/java/com/winlator/xenvironment/RootFSInstaller.java"
+
+
+
+# Validate the essential RootFS directories as well as the version marker.
+python3 - "$APP_MODULE" <<'PY'
+from pathlib import Path
+import sys
+app = Path(sys.argv[1])
+rootfs = app / "src/main/java/com/winlator/xenvironment/RootFS.java"
+source = rootfs.read_text(encoding="utf-8")
+old = """    public boolean isValid() {
+        return rootDir.isDirectory() && getRFSVersionFile().exists();
+    }"""
+new = """    public boolean isValid() {
+        return rootDir.isDirectory()
+            && getRFSVersionFile().isFile()
+            && new File(rootDir, "home").isDirectory()
+            && new File(rootDir, "opt").isDirectory();
+    }"""
+if source.count(old) != 1:
+    raise SystemExit("RootFS.isValid health-check anchor changed.")
+rootfs.write_text(source.replace(old, new, 1), encoding="utf-8")
+
+fragment = app / "src/main/java/com/winlator/ContainersFragment.java"
+source = fragment.read_text(encoding="utf-8")
+old_click = """            emptyTextView.setOnClickListener(v -> {
+                MainActivity activity = (MainActivity)getActivity();
+                if (activity != null) {
+                    emptyTextView.setText("Installing system files…");
+                    RootFSInstaller.installIfNeeded(activity, this::reloadContainers);
+                }
+            });"""
+new_click = """            emptyTextView.setOnClickListener(v -> {
+                MainActivity activity = (MainActivity)getActivity();
+                if (activity != null) {
+                    emptyTextView.setOnClickListener(null);
+                    emptyTextView.setText("Checking and repairing system files…");
+                    RootFSInstaller.installIfNeeded(activity, this::reloadContainers);
+                }
+            });"""
+if source.count(old_click) != 1:
+    raise SystemExit("ContainersFragment RootFS retry click anchor changed.")
+fragment.write_text(source.replace(old_click, new_click, 1), encoding="utf-8")
+PY
+
+grep -q 'new File(rootDir, "home").isDirectory()' "$APP_MODULE/src/main/java/com/winlator/xenvironment/RootFS.java"
+grep -q 'new File(rootDir, "opt").isDirectory()' "$APP_MODULE/src/main/java/com/winlator/xenvironment/RootFS.java"
+grep -q 'emptyTextView.setOnClickListener(null);' "$APP_MODULE/src/main/java/com/winlator/ContainersFragment.java"
