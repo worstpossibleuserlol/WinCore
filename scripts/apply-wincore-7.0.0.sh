@@ -36,31 +36,39 @@ if [[ ! -s "$ICON" ]]; then
   echo "User-supplied WinCore launcher icon missing: $ICON"
   exit 1
 fi
-if ! identify "$ICON" >/dev/null 2>&1; then
-  echo "Launcher icon is not a valid readable image: $ICON"
-  exit 1
-fi
-if [[ "$(identify -format '%wx%h' "$ICON")" != "512x512" ]]; then
-  echo "Expected a 512x512 launcher icon; got $(identify -format '%wx%h' "$ICON")."
-  exit 1
-fi
-if ! command -v convert >/dev/null 2>&1; then
-  echo "ImageMagick is required to generate correctly sized launcher assets."
-  exit 1
-fi
+python3 - "$ICON" "$APP_MODULE" <<'PY'
+from pathlib import Path
+import sys
+from PIL import Image
 
-declare -A ICON_SIZES=([mdpi]=48 [hdpi]=72 [xhdpi]=96 [xxhdpi]=144 [xxxhdpi]=192)
-for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-  size="${ICON_SIZES[$density]}"
-  dir="$APP_MODULE/src/main/res/mipmap-$density"
-  mkdir -p "$dir"
-  # Legacy and round icons get a modest inset; adaptive foreground gets
-  # Android's conservative 66% safe-zone inset to prevent oversized artwork.
-  for icon_name in ic_launcher.png ic_launcher_round.png; do
-    convert "$ICON" -resize 72%x72% -gravity center -background none -extent "${size}x${size}" "$dir/$icon_name"
-  done
-  convert "$ICON" -resize 66%x66% -gravity center -background none -extent "${size}x${size}" "$dir/ic_launcher_foreground.png"
-done
+source = Path(sys.argv[1])
+app = Path(sys.argv[2])
+try:
+    image = Image.open(source)
+    image.load()
+    image = image.convert("RGBA")
+except Exception as error:
+    raise SystemExit(f"Cannot decode supplied WinCore launcher PNG: {error}")
+
+if image.width != image.height:
+    raise SystemExit(f"Launcher icon must be square; got {image.width}x{image.height}")
+
+# Re-encode once to remove malformed/unsupported ancillary metadata, then
+# render density assets with Pillow rather than ImageMagick.
+sizes = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
+for density, size in sizes.items():
+    directory = app / "src/main/res" / f"mipmap-{density}"
+    directory.mkdir(parents=True, exist_ok=True)
+    for name, scale in (("ic_launcher.png", 0.72), ("ic_launcher_round.png", 0.72),
+                        ("ic_launcher_foreground.png", 0.66)):
+        artwork_size = max(1, round(size * scale))
+        artwork = image.resize((artwork_size, artwork_size), Image.Resampling.LANCZOS)
+        canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        offset = ((size - artwork_size) // 2, (size - artwork_size) // 2)
+        canvas.alpha_composite(artwork, offset)
+        canvas.save(directory / name, format="PNG", optimize=True)
+print(f"Generated WinCore launcher assets from {source} ({image.width}x{image.height}).")
+PY
 
 mkdir -p "$APP_MODULE/src/main/res/mipmap-anydpi-v26" \
          "$APP_MODULE/src/main/res/drawable-nodpi"

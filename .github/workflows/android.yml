@@ -33,7 +33,7 @@ jobs:
       - name: Install Android build components
         run: |
           sudo apt-get update
-          sudo apt-get install -y imagemagick
+          sudo apt-get install -y imagemagick python3-pil
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
           if [[ -z "$SDKMANAGER" ]]; then
             echo "Android SDK manager was not found under $ANDROID_HOME"
@@ -222,7 +222,7 @@ jobs:
             "50  Compatibility Center 2.0 dashboard"; do
             grep -Fq "$label" "$COMPAT"
           done
-          ICON="assets/branding/old-launcher-icon.png"
+          ICON="assets/branding/wincore-app-icon.png"
           test -s "$ICON"
           for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
             case "$density" in
