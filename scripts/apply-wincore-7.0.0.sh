@@ -36,7 +36,7 @@ if [[ ! -s "$ICON" ]]; then
   echo "User-supplied WinCore launcher icon missing: $ICON"
   exit 1
 fi
-if ! identify -regard-warnings "$ICON" >/dev/null 2>&1; then
+if ! identify "$ICON" >/dev/null 2>&1; then
   echo "Launcher icon is not a valid readable image: $ICON"
   exit 1
 fi
