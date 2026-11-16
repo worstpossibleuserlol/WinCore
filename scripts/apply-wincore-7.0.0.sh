@@ -518,3 +518,211 @@ for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
 done
 # Launcher resources are density-specific and padded; the About and drawer
 # logos remain independent assets.
+
+
+# WinCore 7.0.0: wait for RootFS installation before loading containers,
+# and perform container directory/config scans away from the UI thread.
+python3 - "$APP_MODULE" <<'PY'
+from pathlib import Path
+import sys
+
+app = Path(sys.argv[1])
+
+def replace_once(path: Path, old: str, new: str, label: str) -> None:
+    source = path.read_text(encoding="utf-8")
+    count = source.count(old)
+    if count != 1:
+        raise SystemExit(f"{label}: expected one anchor, found {count} in {path}")
+    path.write_text(source.replace(old, new, 1), encoding="utf-8")
+
+# RootFS installation is asynchronous. Keep a completion callback and notify
+# the visible container screen only after the installer has finished.
+main_activity = app / "src/main/java/com/winlator/MainActivity.java"
+main = main_activity.read_text(encoding="utf-8")
+if main.count("RootFSInstaller.installIfNeeded(this);") != 2:
+    raise SystemExit("MainActivity: expected installIfNeeded calls in startup and permission callback.")
+main = main.replace(
+    "RootFSInstaller.installIfNeeded(this);",
+    "RootFSInstaller.installIfNeeded(this, this::onRootFSReady);"
+)
+method_anchor = "    private boolean requestAppPermissions() {"
+method = """    private void onRootFSReady() {
+        if (currentFragment instanceof ContainersFragment) {
+            ((ContainersFragment)currentFragment).reloadContainers();
+        }
+    }
+
+"""
+if main.count(method_anchor) != 1 or "private void onRootFSReady()" in main:
+    raise SystemExit("MainActivity: RootFS completion callback insertion point changed.")
+main = main.replace(method_anchor, method + method_anchor, 1)
+main_activity.write_text(main, encoding="utf-8")
+
+# Extend the installer without breaking existing callers. The completion
+# callback always runs after the extraction attempt so the screen can show
+# either loaded containers or a clear not-ready/error state.
+installer = app / "src/main/java/com/winlator/xenvironment/RootFSInstaller.java"
+installer_source = installer.read_text(encoding="utf-8")
+old_install = """    public static void install(final MainActivity activity) {
+        AppUtils.keepScreenOn(activity);"""
+new_install = """    public static void install(final MainActivity activity) {
+        install(activity, null);
+    }
+
+    private static void install(final MainActivity activity, final Runnable onComplete) {
+        AppUtils.keepScreenOn(activity);"""
+if installer_source.count(old_install) != 1:
+    raise SystemExit("RootFSInstaller: install method anchor changed.")
+installer_source = installer_source.replace(old_install, new_install, 1)
+old_complete = """            dialog.closeOnUiThread();
+        });
+    }
+
+    public static void installIfNeeded(final MainActivity activity) {
+        RootFS rootFS = RootFS.find(activity);
+        if (!rootFS.isValid() || rootFS.getVersion() < LATEST_VERSION) install(activity);
+    }"""
+new_complete = """            dialog.closeOnUiThread();
+            if (onComplete != null) activity.runOnUiThread(onComplete);
+        });
+    }
+
+    public static void installIfNeeded(final MainActivity activity) {
+        installIfNeeded(activity, null);
+    }
+
+    public static void installIfNeeded(final MainActivity activity, final Runnable onComplete) {
+        RootFS rootFS = RootFS.find(activity);
+        if (!rootFS.isValid() || rootFS.getVersion() < LATEST_VERSION) {
+            install(activity, onComplete);
+        }
+        else if (onComplete != null) {
+            activity.runOnUiThread(onComplete);
+        }
+    }"""
+if installer_source.count(old_complete) != 1:
+    raise SystemExit("RootFSInstaller: install completion / installIfNeeded block changed.")
+installer_source = installer_source.replace(old_complete, new_complete, 1)
+installer.write_text(installer_source, encoding="utf-8")
+
+# Make the list show explicit setup/loading/failure states. ContainerManager's
+# filesystem scan and JSON parsing execute on a shared worker, not on the UI.
+containers = app / "src/main/java/com/winlator/ContainersFragment.java"
+source = containers.read_text(encoding="utf-8")
+source = source.replace(
+    "import android.os.Build;\n",
+    "import android.os.Build;\nimport android.os.Handler;\nimport android.os.Looper;\n",
+    1
+)
+source = source.replace(
+    "import com.winlator.xenvironment.RootFS;\n",
+    "import com.winlator.xenvironment.RootFS;\nimport com.winlator.xenvironment.RootFSInstaller;\n",
+    1
+)
+source = source.replace(
+    "import java.util.List;\n",
+    "import java.util.List;\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\n",
+    1
+)
+fields_anchor = """public class ContainersFragment extends Fragment {
+    private RecyclerView recyclerView;"""
+fields_replacement = """public class ContainersFragment extends Fragment {
+    private static final ExecutorService CONTAINER_LOAD_EXECUTOR = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private int loadGeneration = 0;
+    private RecyclerView recyclerView;"""
+if source.count(fields_anchor) != 1:
+    raise SystemExit("ContainersFragment: class fields insertion point changed.")
+source = source.replace(fields_anchor, fields_replacement, 1)
+
+old_on_view = """        manager = new ContainerManager(getContext());
+        loadContainersList();"""
+if source.count(old_on_view) != 1:
+    raise SystemExit("ContainersFragment: initial manager construction anchor changed.")
+source = source.replace(old_on_view, "        loadContainersList();", 1)
+
+old_loader = """    private void loadContainersList() {
+        ArrayList<Container> containers = manager.getContainers();
+        recyclerView.setAdapter(new ContainersAdapter(containers));
+        if (containers.isEmpty()) emptyTextView.setVisibility(View.VISIBLE);
+    }"""
+new_loader = """    public void reloadContainers() {
+        loadContainersList();
+    }
+
+    private void loadContainersList() {
+        if (recyclerView == null || emptyTextView == null) return;
+        final Context context = getContext();
+        if (context == null) return;
+        final int generation = ++loadGeneration;
+        final Context appContext = context.getApplicationContext() != null ? context.getApplicationContext() : context;
+
+        boolean rootFSReady = false;
+        try {
+            RootFS rootFS = RootFS.find(appContext);
+            rootFSReady = rootFS.isValid() && rootFS.getVersion() >= RootFSInstaller.LATEST_VERSION;
+        }
+        catch (Exception ignored) { }
+
+        if (!rootFSReady) {
+            manager = null;
+            recyclerView.setAdapter(null);
+            emptyTextView.setText("System files are not ready. WinCore will load containers after installation finishes.");
+            emptyTextView.setVisibility(View.VISIBLE);
+            return;
+        }
+
+        emptyTextView.setText("Loading containers…");
+        emptyTextView.setVisibility(View.VISIBLE);
+        CONTAINER_LOAD_EXECUTOR.execute(() -> {
+            try {
+                final ContainerManager loadedManager = new ContainerManager(appContext);
+                final ArrayList<Container> loadedContainers = new ArrayList<>(loadedManager.getContainers());
+                mainHandler.post(() -> {
+                    if (!isAdded() || generation != loadGeneration || recyclerView == null || emptyTextView == null) return;
+                    manager = loadedManager;
+                    recyclerView.setAdapter(new ContainersAdapter(loadedContainers));
+                    if (loadedContainers.isEmpty()) {
+                        emptyTextView.setText("No containers found.");
+                        emptyTextView.setVisibility(View.VISIBLE);
+                    }
+                    else {
+                        emptyTextView.setText("");
+                        emptyTextView.setVisibility(View.GONE);
+                    }
+                });
+            }
+            catch (Exception error) {
+                final String detail = error.getMessage() != null ? error.getMessage() : error.getClass().getSimpleName();
+                mainHandler.post(() -> {
+                    if (!isAdded() || generation != loadGeneration || recyclerView == null || emptyTextView == null) return;
+                    manager = null;
+                    recyclerView.setAdapter(null);
+                    emptyTextView.setText("Unable to load containers: " + detail + ". Use refresh or reopen the screen after checking system files.");
+                    emptyTextView.setVisibility(View.VISIBLE);
+                });
+            }
+        });
+    }
+
+    @Override
+    public void onDestroyView() {
+        loadGeneration++;
+        recyclerView = null;
+        emptyTextView = null;
+        manager = null;
+        super.onDestroyView();
+    }"""
+if source.count(old_loader) != 1:
+    raise SystemExit("ContainersFragment: loadContainersList method anchor changed.")
+source = source.replace(old_loader, new_loader, 1)
+containers.write_text(source, encoding="utf-8")
+PY
+
+# Verify the RootFS readiness callback and background container loading patch.
+grep -q 'RootFSInstaller.installIfNeeded(this, this::onRootFSReady)' "$APP_MODULE/src/main/java/com/winlator/MainActivity.java"
+grep -q 'private void onRootFSReady()' "$APP_MODULE/src/main/java/com/winlator/MainActivity.java"
+grep -q 'installIfNeeded(final MainActivity activity, final Runnable onComplete)' "$APP_MODULE/src/main/java/com/winlator/xenvironment/RootFSInstaller.java"
+grep -q 'public void reloadContainers()' "$APP_MODULE/src/main/java/com/winlator/ContainersFragment.java"
+grep -q 'CONTAINER_LOAD_EXECUTOR.execute' "$APP_MODULE/src/main/java/com/winlator/ContainersFragment.java"
+grep -q 'RootFSInstaller.LATEST_VERSION' "$APP_MODULE/src/main/java/com/winlator/ContainersFragment.java"
