@@ -794,7 +794,7 @@ method_anchor = """    public ArrayList<Container> getContainers() {
         return containers;
     }
 """
-method = """    public ArrayList<Container> getLoadWarnings() {
+method = """    public ArrayList<String> getLoadWarnings() {
         return new ArrayList<>(loadWarnings);
     }
 
