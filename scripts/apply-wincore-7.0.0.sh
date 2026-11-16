@@ -771,3 +771,172 @@ grep -q 'installIfNeeded(final MainActivity activity, final Runnable onComplete)
 grep -q 'public void reloadContainers()' "$APP_MODULE/src/main/java/com/winlator/ContainersFragment.java"
 grep -q 'CONTAINER_LOAD_EXECUTOR.execute' "$APP_MODULE/src/main/java/com/winlator/ContainersFragment.java"
 grep -q 'RootFSInstaller.LATEST_VERSION' "$APP_MODULE/src/main/java/com/winlator/ContainersFragment.java"
+
+
+
+# Container scan diagnostics and reliable refresh behavior.
+python3 - "$APP_MODULE" <<'PY'
+from pathlib import Path
+import sys
+
+app = Path(sys.argv[1])
+
+manager = app / "src/main/java/com/winlator/container/ContainerManager.java"
+m = manager.read_text(encoding="utf-8")
+
+field_anchor = "    private final File homeDir;\n"
+if m.count(field_anchor) != 1:
+    raise SystemExit("ContainerManager diagnostics field anchor changed.")
+m = m.replace(field_anchor, field_anchor + "    private final ArrayList<String> loadWarnings = new ArrayList<>();\n", 1)
+
+method_anchor = """    public ArrayList<Container> getContainers() {
+        return containers;
+    }
+"""
+method = """    public ArrayList<Container> getLoadWarnings() {
+        return new ArrayList<>(loadWarnings);
+    }
+
+"""
+if m.count(method_anchor) != 1:
+    raise SystemExit("ContainerManager warning getter anchor changed.")
+m = m.replace(method_anchor, method_anchor + "\n" + method, 1)
+
+old_scan = """        containers.clear();
+        maxContainerId = 0;
+        File[] files = homeDir.listFiles();
+        if (files == null) return;
+"""
+new_scan = """        containers.clear();
+        loadWarnings.clear();
+        maxContainerId = 0;
+        if (!homeDir.exists()) {
+            throw new IllegalStateException("Container directory is missing: " + homeDir.getAbsolutePath());
+        }
+        if (!homeDir.isDirectory()) {
+            throw new IllegalStateException("Container path is not a directory: " + homeDir.getAbsolutePath());
+        }
+        if (!homeDir.canRead()) {
+            throw new IllegalStateException("Container directory is not readable: " + homeDir.getAbsolutePath());
+        }
+        File[] files = homeDir.listFiles();
+        if (files == null) {
+            throw new IllegalStateException("Android could not list container directory: " + homeDir.getAbsolutePath());
+        }
+"""
+if m.count(old_scan) != 1:
+    raise SystemExit("ContainerManager scan null-list anchor changed.")
+m = m.replace(old_scan, new_scan, 1)
+
+old_skip = """            catch (Exception error) {
+                android.util.Log.w("WinCore", "Skipping unreadable container " + id, error);
+            }"""
+new_skip = """            catch (Exception error) {
+                String reason = error.getMessage() != null ? error.getMessage() : error.getClass().getSimpleName();
+                loadWarnings.add("Container " + id + " (" + file.getName() + "): " + reason);
+                android.util.Log.w("WinCore", "Skipping unreadable container " + id, error);
+            }"""
+if m.count(old_skip) != 1:
+    raise SystemExit("ContainerManager unreadable-container warning anchor changed.")
+m = m.replace(old_skip, new_skip, 1)
+manager.write_text(m, encoding="utf-8")
+
+containers = app / "src/main/java/com/winlator/ContainersFragment.java"
+c = containers.read_text(encoding="utf-8")
+
+old_success = """                    manager = loadedManager;
+                    recyclerView.setAdapter(new ContainersAdapter(loadedContainers));
+                    emptyTextView.setOnClickListener(null);
+                    if (loadedContainers.isEmpty()) {
+                        emptyTextView.setText("No containers found. Check that your container data exists under the WinCore system files.");
+                        emptyTextView.setVisibility(View.VISIBLE);
+                    }
+                    else {
+                        emptyTextView.setText("");
+                        emptyTextView.setVisibility(View.GONE);
+                    }"""
+new_success = """                    manager = loadedManager;
+                    recyclerView.setAdapter(new ContainersAdapter(loadedContainers));
+                    ArrayList<String> warnings = loadedManager.getLoadWarnings();
+                    if (loadedContainers.isEmpty() || !warnings.isEmpty()) {
+                        StringBuilder status = new StringBuilder();
+                        if (loadedContainers.isEmpty()) {
+                            status.append("No readable containers found. ");
+                        }
+                        else {
+                            status.append("Loaded ").append(loadedContainers.size()).append(" container(s). ");
+                        }
+                        if (!warnings.isEmpty()) {
+                            status.append("Skipped ").append(warnings.size()).append(" unreadable container(s): ");
+                            int limit = Math.min(warnings.size(), 3);
+                            for (int index = 0; index < limit; index++) {
+                                if (index > 0) status.append(" | ");
+                                status.append(warnings.get(index));
+                            }
+                            if (warnings.size() > limit) {
+                                status.append(" | and ").append(warnings.size() - limit).append(" more");
+                            }
+                            status.append(". ");
+                        }
+                        status.append("Tap here to scan again.");
+                        emptyTextView.setText(status.toString());
+                        emptyTextView.setVisibility(View.VISIBLE);
+                        emptyTextView.setOnClickListener(v -> loadContainersList());
+                    }
+                    else {
+                        emptyTextView.setText("");
+                        emptyTextView.setOnClickListener(null);
+                        emptyTextView.setVisibility(View.GONE);
+                    }"""
+if c.count(old_success) != 1:
+    raise SystemExit("ContainersFragment successful-load status anchor changed.")
+c = c.replace(old_success, new_success, 1)
+
+old_error = """                    manager = null;
+                    recyclerView.setAdapter(null);
+                    emptyTextView.setText("Unable to load containers: " + detail + ". Use refresh or reopen the screen after checking system files.");
+                    emptyTextView.setVisibility(View.VISIBLE);"""
+new_error = """                    manager = null;
+                    recyclerView.setAdapter(null);
+                    emptyTextView.setText("Unable to load containers: " + detail + ". Tap here to retry.");
+                    emptyTextView.setVisibility(View.VISIBLE);
+                    emptyTextView.setOnClickListener(v -> loadContainersList());"""
+if c.count(old_error) != 1:
+    raise SystemExit("ContainersFragment error refresh anchor changed.")
+c = c.replace(old_error, new_error, 1)
+containers.write_text(c, encoding="utf-8")
+
+# Ensure the install callback still runs even if closing the progress dialog throws.
+installer = app / "src/main/java/com/winlator/xenvironment/RootFSInstaller.java"
+r = installer.read_text(encoding="utf-8")
+old_finally = """            finally {
+                dialog.closeOnUiThread();
+                if (onComplete != null) activity.runOnUiThread(onComplete);
+            }"""
+new_finally = """            finally {
+                try {
+                    dialog.closeOnUiThread();
+                }
+                catch (Exception closeError) {
+                    android.util.Log.w("WinCore", "Could not close RootFS progress dialog", closeError);
+                }
+                if (onComplete != null) {
+                    try {
+                        activity.runOnUiThread(onComplete);
+                    }
+                    catch (Exception callbackError) {
+                        android.util.Log.e("WinCore", "Could not dispatch RootFS completion callback", callbackError);
+                    }
+                }
+            }"""
+if r.count(old_finally) != 1:
+    raise SystemExit("RootFSInstaller final callback guard anchor changed.")
+r = r.replace(old_finally, new_finally, 1)
+installer.write_text(r, encoding="utf-8")
+PY
+
+grep -q 'Container directory is missing:' "$APP_MODULE/src/main/java/com/winlator/container/ContainerManager.java"
+grep -q 'Android could not list container directory:' "$APP_MODULE/src/main/java/com/winlator/container/ContainerManager.java"
+grep -q 'public ArrayList<String> getLoadWarnings()' "$APP_MODULE/src/main/java/com/winlator/container/ContainerManager.java"
+grep -q 'Tap here to scan again.' "$APP_MODULE/src/main/java/com/winlator/ContainersFragment.java"
+grep -q 'Could not close RootFS progress dialog' "$APP_MODULE/src/main/java/com/winlator/xenvironment/RootFSInstaller.java"
