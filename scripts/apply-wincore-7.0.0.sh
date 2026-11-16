@@ -574,6 +574,15 @@ new_install = """    public static void install(final MainActivity activity) {
 if installer_source.count(old_install) != 1:
     raise SystemExit("RootFSInstaller: install method anchor changed.")
 installer_source = installer_source.replace(old_install, new_install, 1)
+worker_anchor = """        Executors.newSingleThreadExecutor().execute(() -> {
+            clearRootDir(rootDir);"""
+worker_replacement = """        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                clearRootDir(rootDir);"""
+if installer_source.count(worker_anchor) != 1:
+    raise SystemExit("RootFSInstaller worker anchor changed.")
+installer_source = installer_source.replace(worker_anchor, worker_replacement, 1)
+
 old_complete = """            dialog.closeOnUiThread();
         });
     }
@@ -582,12 +591,14 @@ old_complete = """            dialog.closeOnUiThread();
         RootFS rootFS = RootFS.find(activity);
         if (!rootFS.isValid() || rootFS.getVersion() < LATEST_VERSION) install(activity);
     }"""
-new_complete = """            try {
+new_complete = """            }
+            catch (Exception error) {
+                android.util.Log.e("WinCore", "RootFS installation failed", error);
+                AppUtils.showToast(activity, R.string.unable_to_install_system_files);
+            }
+            finally {
                 dialog.closeOnUiThread();
                 if (onComplete != null) activity.runOnUiThread(onComplete);
-            }
-            catch (Exception error) {
-                android.util.Log.e("WinCore", "RootFS completion callback failed", error);
             }
         });
     }
