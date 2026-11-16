@@ -582,8 +582,13 @@ old_complete = """            dialog.closeOnUiThread();
         RootFS rootFS = RootFS.find(activity);
         if (!rootFS.isValid() || rootFS.getVersion() < LATEST_VERSION) install(activity);
     }"""
-new_complete = """            dialog.closeOnUiThread();
-            if (onComplete != null) activity.runOnUiThread(onComplete);
+new_complete = """            try {
+                dialog.closeOnUiThread();
+                if (onComplete != null) activity.runOnUiThread(onComplete);
+            }
+            catch (Exception error) {
+                android.util.Log.e("WinCore", "RootFS completion callback failed", error);
+            }
         });
     }
 
@@ -593,7 +598,10 @@ new_complete = """            dialog.closeOnUiThread();
 
     public static void installIfNeeded(final MainActivity activity, final Runnable onComplete) {
         RootFS rootFS = RootFS.find(activity);
-        if (!rootFS.isValid() || rootFS.getVersion() < LATEST_VERSION) {
+        int version;
+        try { version = rootFS.getVersion(); }
+        catch (Exception error) { version = 0; }
+        if (!rootFS.isValid() || version < LATEST_VERSION) {
             install(activity, onComplete);
         }
         else if (onComplete != null) {
@@ -604,6 +612,24 @@ if installer_source.count(old_complete) != 1:
     raise SystemExit("RootFSInstaller: install completion / installIfNeeded block changed.")
 installer_source = installer_source.replace(old_complete, new_complete, 1)
 installer.write_text(installer_source, encoding="utf-8")
+
+# Treat a malformed RootFS version marker as an outdated installation instead
+# of allowing NumberFormatException to abort startup/container discovery.
+rootfs_file = app / "src/main/java/com/winlator/xenvironment/RootFS.java"
+rootfs_source = rootfs_file.read_text(encoding="utf-8")
+old_version = """        return rfsVersionFile.exists() ? Integer.parseInt(FileUtils.readLines(rfsVersionFile).get(0)) : 0;"""
+new_version = """        if (!rfsVersionFile.exists()) return 0;
+        try {
+            java.util.List<String> lines = FileUtils.readLines(rfsVersionFile);
+            return lines.isEmpty() ? 0 : Integer.parseInt(lines.get(0).trim());
+        }
+        catch (Exception error) {
+            android.util.Log.e("WinCore", "Invalid RootFS version marker; reinstall required", error);
+            return 0;
+        }"""
+if rootfs_source.count(old_version) != 1:
+    raise SystemExit("RootFS.getVersion anchor changed.")
+rootfs_file.write_text(rootfs_source.replace(old_version, new_version, 1), encoding="utf-8")
 
 # Make the list show explicit setup/loading/failure states. ContainerManager's
 # filesystem scan and JSON parsing execute on a shared worker, not on the UI.
@@ -667,8 +693,15 @@ new_loader = """    public void reloadContainers() {
         if (!rootFSReady) {
             manager = null;
             recyclerView.setAdapter(null);
-            emptyTextView.setText("System files are not ready. WinCore will load containers after installation finishes.");
+            emptyTextView.setText("System files are not ready. Tap here to retry installation and load containers.");
             emptyTextView.setVisibility(View.VISIBLE);
+            emptyTextView.setOnClickListener(v -> {
+                MainActivity activity = (MainActivity)getActivity();
+                if (activity != null) {
+                    emptyTextView.setText("Installing system files…");
+                    RootFSInstaller.installIfNeeded(activity, this::reloadContainers);
+                }
+            });
             return;
         }
 
@@ -682,8 +715,9 @@ new_loader = """    public void reloadContainers() {
                     if (!isAdded() || generation != loadGeneration || recyclerView == null || emptyTextView == null) return;
                     manager = loadedManager;
                     recyclerView.setAdapter(new ContainersAdapter(loadedContainers));
+                    emptyTextView.setOnClickListener(null);
                     if (loadedContainers.isEmpty()) {
-                        emptyTextView.setText("No containers found.");
+                        emptyTextView.setText("No containers found. Check that your container data exists under the WinCore system files.");
                         emptyTextView.setVisibility(View.VISIBLE);
                     }
                     else {
