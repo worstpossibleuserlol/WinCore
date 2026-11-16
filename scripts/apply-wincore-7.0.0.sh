@@ -645,6 +645,47 @@ rootfs_file.write_text(rootfs_source.replace(old_version, new_version, 1), encod
 
 # Make the list show explicit setup/loading/failure states. ContainerManager's
 # filesystem scan and JSON parsing execute on a shared worker, not on the UI.
+# Prevent container launch from leaving the "Starting up..." preloader forever
+# when Wine preparation or XEnvironment startup throws.
+display = app / "src/main/java/com/winlator/XServerDisplayActivity.java"
+display_source = display.read_text(encoding="utf-8")
+display_source = display_source.replace(
+    "import android.widget.Spinner;\n",
+    "import android.widget.Spinner;\nimport android.widget.Toast;\n",
+    1
+)
+old_startup = """        Executors.newSingleThreadExecutor().execute(() -> {
+            if (!isGenerateWineprefix()) {
+                setupWineSystemFiles();
+                extractGraphicsDriverFiles();
+                changeWineAudioDriver();
+            }
+            setupXEnvironment();
+        });"""
+new_startup = """        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                if (!isGenerateWineprefix()) {
+                    setupWineSystemFiles();
+                    extractGraphicsDriverFiles();
+                    changeWineAudioDriver();
+                }
+                setupXEnvironment();
+            }
+            catch (Exception error) {
+                android.util.Log.e("WinCore", "Container startup failed", error);
+                runOnUiThread(() -> {
+                    preloaderDialog.close();
+                    String detail = error.getMessage();
+                    if (detail == null || detail.trim().isEmpty()) detail = error.getClass().getSimpleName();
+                    Toast.makeText(this, "Container failed to start: " + detail, Toast.LENGTH_LONG).show();
+                });
+            }
+        });"""
+if display_source.count(old_startup) != 1:
+    raise SystemExit("XServerDisplayActivity startup worker anchor changed.")
+display_source = display_source.replace(old_startup, new_startup, 1)
+display.write_text(display_source, encoding="utf-8")
+
 containers = app / "src/main/java/com/winlator/ContainersFragment.java"
 source = containers.read_text(encoding="utf-8")
 source = source.replace(
