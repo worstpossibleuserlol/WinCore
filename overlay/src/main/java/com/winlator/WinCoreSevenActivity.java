@@ -691,10 +691,24 @@ public final class WinCoreSevenActivity extends Activity {
             catch (Exception ignored) { }
             io.execute(() -> {
                 try {
+                    BitmapFactory.Options bounds = new BitmapFactory.Options();
+                    bounds.inJustDecodeBounds = true;
+                    try (InputStream in = getContentResolver().openInputStream(uri)) {
+                        BitmapFactory.decodeStream(in, null, bounds);
+                    }
+                    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw new IOException("The selected image could not be decoded.");
+                    BitmapFactory.Options decode = new BitmapFactory.Options();
+                    decode.inSampleSize = 1;
+                    while (bounds.outWidth / decode.inSampleSize > 512 || bounds.outHeight / decode.inSampleSize > 512) {
+                        decode.inSampleSize *= 2;
+                    }
                     Bitmap bitmap;
-                    try (InputStream in = getContentResolver().openInputStream(uri)) { bitmap = BitmapFactory.decodeStream(in); }
+                    try (InputStream in = getContentResolver().openInputStream(uri)) {
+                        bitmap = BitmapFactory.decodeStream(in, null, decode);
+                    }
                     if (bitmap == null) throw new IOException("The selected image could not be decoded.");
-                    String iconName = "wincore-custom-" + shortcut.file.getName().hashCode();
+                    String iconKey = shortcut.container.id + ":" + shortcut.file.getAbsolutePath();
+                    String iconName = "wincore-custom-" + Integer.toUnsignedString(iconKey.hashCode(), 16);
                     File iconFile = new File(shortcut.container.getIconsDir(64), iconName + ".png");
                     iconFile.getParentFile().mkdirs();
                     try (FileOutputStream out = new FileOutputStream(iconFile)) {
@@ -822,20 +836,27 @@ public final class WinCoreSevenActivity extends Activity {
         long total = 0;
         int entries = 0;
         org.json.JSONArray symlinks = new org.json.JSONArray();
-        InputStream source = getContentResolver().openInputStream(uri);
-        if (source == null) throw new IOException("The selected backup could not be opened.");
-        try (ZipInputStream zip = new ZipInputStream(new BufferedInputStream(source))) {
+        try {
+            InputStream source = getContentResolver().openInputStream(uri);
+            if (source == null) throw new IOException("The selected backup could not be opened.");
+            try (ZipInputStream zip = new ZipInputStream(new BufferedInputStream(source))) {
             ZipEntry entry;
             byte[] buffer = new byte[64 * 1024];
+            HashSet<String> restoredEntryNames = new HashSet<>();
+            boolean symlinkManifestSeen = false;
             while ((entry = zip.getNextEntry()) != null) {
                 if (++entries > MAX_RESTORE_ENTRIES) throw new IOException("The backup contains too many entries.");
                 String name = entry.getName().replace('\\', '/');
                 if (name.equals(".wincore-backup/symlinks.json")) {
+                    if (symlinkManifestSeen) throw new IOException("Backup contains duplicate symbolic link manifests.");
+                    symlinkManifestSeen = true;
                     ByteArrayOutputStream manifestBytes = new ByteArrayOutputStream();
                     int read;
+                    long manifestSize = 0;
                     while ((read = zip.read(buffer)) != -1) {
                         total += read;
-                        if (total > 1024 * 1024) throw new IOException("Symbolic link manifest exceeds 1 MiB.");
+                        manifestSize += read;
+                        if (manifestSize > 1024 * 1024) throw new IOException("Symbolic link manifest exceeds 1 MiB.");
                         manifestBytes.write(buffer, 0, read);
                     }
                     symlinks = new org.json.JSONArray(manifestBytes.toString("UTF-8"));
@@ -848,6 +869,7 @@ public final class WinCoreSevenActivity extends Activity {
                     zip.closeEntry();
                     continue;
                 }
+                if (!restoredEntryNames.add(name)) throw new IOException("Backup contains a duplicate path: " + name);
                 File output = new File(staging, name);
                 String canonicalRoot = staging.getCanonicalPath() + File.separator;
                 if (!output.getCanonicalPath().startsWith(canonicalRoot) && !output.equals(staging)) throw new IOException("Backup path escaped the staging folder.");
@@ -877,11 +899,14 @@ public final class WinCoreSevenActivity extends Activity {
             if (!record.dir.renameTo(oldBackup)) throw new IOException("Could not move the existing container to its rollback location.");
             File target = new File(homeDir, RootFS.USER + "-" + record.id);
             if (!staging.renameTo(target)) {
-                oldBackup.renameTo(record.dir);
-                throw new IOException("Could not install the validated restore. The previous container was put back.");
+                if (!oldBackup.renameTo(record.dir)) {
+                    throw new IOException("Could not install the validated restore, and automatic rollback failed. Previous data remains at: " + oldBackup.getAbsolutePath());
+                }
+                throw new IOException("Could not install the validated restore. The previous container was restored.");
             }
             preferences.edit().putString("last_restore_backup_" + record.id, oldBackup.getAbsolutePath()).apply();
             deleteRecursively(oldBackup);
+            }
         }
         catch (Exception error) {
             deleteRecursively(staging);
@@ -961,11 +986,20 @@ public final class WinCoreSevenActivity extends Activity {
     private File createSnapshot(ContainerRecord record, String reason) throws IOException {
         File folder = new File(getFilesDir(), "wincore7/snapshots/" + record.id);
         if (!folder.exists() && !folder.mkdirs()) throw new IOException("Could not create snapshot folder.");
-        File snapshot = new File(folder, System.currentTimeMillis() + "-" + reason + ".json");
+        long timestamp = System.currentTimeMillis();
+        File snapshot = new File(folder, timestamp + "-" + reason + ".json");
+        while (snapshot.exists()) snapshot = new File(folder, ++timestamp + "-" + reason + ".json");
         try (InputStream in = new FileInputStream(record.config); OutputStream out = new FileOutputStream(snapshot)) {
             byte[] buffer = new byte[16 * 1024];
             int count;
             while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+        }
+        File[] saved = folder.listFiles((dir, name) -> name.endsWith(".json"));
+        if (saved != null && saved.length > 20) {
+            Arrays.sort(saved, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+            for (int index = 20; index < saved.length; index++) {
+                if (!saved[index].delete()) android.util.Log.w("WinCore7", "Could not prune old snapshot: " + saved[index]);
+            }
         }
         return snapshot;
     }
@@ -1331,7 +1365,17 @@ public final class WinCoreSevenActivity extends Activity {
             out.append("\n");
         }
         if (!found) out.append("Icon=").append(iconName).append("\n");
-        Files.write(desktopFile.toPath(), out.toString().getBytes(StandardCharsets.UTF_8));
+        AtomicFile atomic = new AtomicFile(desktopFile);
+        FileOutputStream stream = null;
+        try {
+            stream = atomic.startWrite();
+            stream.write(out.toString().getBytes(StandardCharsets.UTF_8));
+            atomic.finishWrite(stream);
+        }
+        catch (IOException error) {
+            if (stream != null) atomic.failWrite(stream);
+            throw error;
+        }
     }
 
     private void showRecentlyPlayedGames() {
@@ -1537,10 +1581,26 @@ public final class WinCoreSevenActivity extends Activity {
         startActivityForResult(intent, REQUEST_ARTWORK);
     }
 
-    private void saveJson(ContainerRecord record, JSONObject json) throws IOException {
-        if (preferences.getBoolean("automatic_backups", false)) createSnapshot(record, "before-change");
-        writeAtomicNoSnapshot(record.config, json.toString());
-        loadContainers(false);
+    private void saveJson(ContainerRecord record, JSONObject json) {
+        final String updated = json.toString();
+        progress.setVisibility(View.VISIBLE);
+        progress.setIndeterminate(true);
+        io.execute(() -> {
+            try {
+                if (preferences.getBoolean("automatic_backups", false)) createSnapshot(record, "before-change");
+                writeAtomicNoSnapshot(record.config, updated);
+                main.post(() -> {
+                    progress.setVisibility(View.GONE);
+                    loadContainers(false);
+                });
+            }
+            catch (Exception error) {
+                main.post(() -> {
+                    progress.setVisibility(View.GONE);
+                    showError("Configuration update failed", error);
+                });
+            }
+        });
     }
 
     private void toggleSafeLaunchLegacy() { toggleSafeLaunch(); }
