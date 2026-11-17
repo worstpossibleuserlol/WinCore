@@ -966,6 +966,72 @@ if old_exec in process:
     process = process.replace(old_exec, new_exec, 1)
 elif "Could not obtain a process id for command:" not in process:
     raise SystemExit("ProcessHelper: silent exec implementation anchor changed")
+# Correct argument splitting for ProcessBuilder. Quotes group an argument but
+# must not be passed through as literal characters to the child process.
+if "Unclosed double quote in process command" not in process:
+    split_start = process.find("    public static String[] splitCommand(String command) {")
+    split_end = process.find("    public static String getAffinityMaskAsHexString", split_start)
+    if split_start < 0 or split_end < 0:
+        raise SystemExit("ProcessHelper: splitCommand replacement anchors changed")
+    new_split_command = r'''    public static String[] splitCommand(String command) {
+        if (command == null || command.trim().isEmpty()) return new String[0];
+
+        ArrayList<String> result = new ArrayList<>();
+        StringBuilder value = new StringBuilder();
+        boolean inQuotes = false;
+        boolean tokenStarted = false;
+
+        for (int i = 0; i < command.length(); i++) {
+            char current = command.charAt(i);
+            char next = i + 1 < command.length() ? command.charAt(i + 1) : 0;
+
+            // Preserve Winlator's escaped-space syntax outside quoted arguments.
+            if (!inQuotes && current == '\\' && next == ' ') {
+                value.append(' ');
+                tokenStarted = true;
+                i++;
+                continue;
+            }
+
+            // Allow a literal double quote inside a quoted argument.
+            if (current == '\\' && next == '"') {
+                value.append('"');
+                tokenStarted = true;
+                i++;
+                continue;
+            }
+
+            if (current == '"') {
+                inQuotes = !inQuotes;
+                tokenStarted = true;
+                continue;
+            }
+
+            if (Character.isWhitespace(current) && !inQuotes) {
+                if (tokenStarted) {
+                    result.add(value.toString());
+                    value.setLength(0);
+                    tokenStarted = false;
+                }
+                continue;
+            }
+
+            // Preserve Windows path backslashes unless they escape a space or quote.
+            value.append(current);
+            tokenStarted = true;
+        }
+
+        if (inQuotes) {
+            throw new IllegalArgumentException("Unclosed double quote in process command");
+        }
+
+        if (tokenStarted) result.add(value.toString());
+        return result.toArray(new String[0]);
+    }
+
+'''
+    process = process[:split_start] + new_split_command + process[split_end:]
+
 process_path.write_text(process, encoding="utf-8")
 
 guest_path = required("src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java")
@@ -1490,7 +1556,10 @@ checks = {
     "src/main/java/com/winlator/core/ProcessHelper.java": [
         "createProcessOutputThread(InputStream inputStream, String executable)",
         "Could not launch command:",
-        "processBuilder.redirectErrorStream(true)"
+        "processBuilder.redirectErrorStream(true)",
+        "Unclosed double quote in process command",
+        "value.setLength(0)",
+        "result.add(value.toString())"
     ],
     "src/main/java/com/winlator/core/TarCompressorUtils.java": [
         "Could not open packaged archive:",
