@@ -902,6 +902,91 @@ process_path.write_text(process, encoding="utf-8")
 
 guest_path = required("src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java")
 guest = guest_path.read_text(encoding="utf-8")
+
+# Repair the silent Box64 extraction state bug. The upstream code used to write
+# current_box64_version even when the archive failed to extract, which caused
+# every later launch to skip recovery while the executable was still missing.
+old_box64_extract = """    private void extractBox64File() {
+        Context context = environment.getContext();
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        String box64Version = preferences.getString("box64_version", DefaultVersion.BOX64);
+        String currentBox64Version = preferences.getString("current_box64_version", "");
+
+        if (!box64Version.equals(currentBox64Version)) {
+            GeneralComponents.extractFile(GeneralComponents.Type.BOX64, context, box64Version, DefaultVersion.BOX64);
+            preferences.edit().putString("current_box64_version", box64Version).apply();
+        }
+    }"""
+new_box64_extract = """    private void extractBox64File() {
+        Context context = environment.getContext();
+        RootFS rootFS = environment.getRootFS();
+        File box64File = new File(rootFS.getRootDir(), "usr/local/bin/box64");
+        File box64Directory = box64File.getParentFile();
+        if (box64Directory == null || (!box64Directory.isDirectory() && !box64Directory.mkdirs())) {
+            throw new IllegalStateException(
+                "Could not prepare the RootFS Box64 directory: " +
+                    (box64Directory != null ? box64Directory.getAbsolutePath() : "<null>")
+            );
+        }
+
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        String box64Version = preferences.getString("box64_version", DefaultVersion.BOX64);
+        String currentBox64Version = preferences.getString("current_box64_version", "");
+
+        // Never trust the version preference by itself. It may have been saved
+        // by an earlier launch even though the archive extraction failed.
+        if (!isBox64RuntimeReady(box64File) || !box64Version.equals(currentBox64Version)) {
+            android.util.Log.i(
+                "WinCore/Box64",
+                "Extracting Box64 " + box64Version + " because the runtime is missing or changed"
+            );
+            GeneralComponents.extractFile(
+                GeneralComponents.Type.BOX64, context, box64Version, DefaultVersion.BOX64
+            );
+        }
+
+        // Retry the packaged, known-good component once if a custom component
+        // or an earlier partial extraction did not produce a usable executable.
+        if (!isBox64RuntimeReady(box64File)) {
+            android.util.Log.w(
+                "WinCore/Box64",
+                "Selected Box64 archive did not produce an executable; retrying packaged Box64 " +
+                    DefaultVersion.BOX64
+            );
+            GeneralComponents.extractFile(
+                GeneralComponents.Type.BOX64, context, DefaultVersion.BOX64, DefaultVersion.BOX64
+            );
+        }
+
+        if (!isBox64RuntimeReady(box64File)) {
+            throw new IllegalStateException(
+                "Box64 runtime was not extracted successfully. Expected a readable executable at " +
+                    box64File.getAbsolutePath() +
+                    ". The packaged Box64 archive may be missing, damaged, or unable to extract. " +
+                    "Your containers have not been deleted."
+            );
+        }
+
+        FileUtils.chmod(box64File, 0771);
+        if (!box64File.canExecute()) {
+            throw new IllegalStateException(
+                "Box64 exists but is not executable: " + box64File.getAbsolutePath()
+            );
+        }
+
+        // Save the version only after the real executable has been verified.
+        preferences.edit().putString("current_box64_version", box64Version).apply();
+        android.util.Log.i(
+            "WinCore/Box64",
+            "Verified Box64 executable: " + box64File.getAbsolutePath() +
+                " (" + box64File.length() + " bytes)"
+        );
+    }
+
+    private boolean isBox64RuntimeReady(File box64File) {
+        return box64File != null && box64File.isFile() &&
+            box64File.length() > 0 && box64File.canRead();
+    }"""
 guest = guest.replace("import android.os.Process;\n", "")
 guest = guest.replace("    private static int pid = -1;\n", "    private static java.lang.Process guestProcess;\n")
 old_start = """    @Override
@@ -1035,6 +1120,11 @@ for source_path in (app / "src/main/java/com/winlator").rglob("*.java"):
     if corrected != source:
         source_path.write_text(corrected, encoding="utf-8")
 
+# Verify the packaged Box64 runtime is present before compiling.
+box64_archive = required("src/main/assets/box64/box64-0.4.4.tzst")
+if box64_archive.stat().st_size < 1024:
+    raise SystemExit(f"Packaged Box64 archive is missing or implausibly small: {box64_archive}")
+
 # Verify the critical markers before Gradle compiles.
 checks = {
     "src/main/java/com/winlator/core/GPUHelper.java": [
@@ -1055,7 +1145,11 @@ checks = {
     "src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java": [
         "ProcessHelper.startProcess(command, envVars, rootDir)",
         "WinCore-Guest-Process-Waiter",
-        "guestProcess.destroyForcibly()"
+        "guestProcess.destroyForcibly()",
+        "Box64 runtime was not extracted successfully",
+        "isBox64RuntimeReady(box64File)",
+        "FileUtils.chmod(box64File, 0771)",
+        "preferences.edit().putString(\"current_box64_version\", box64Version).apply()"
     ],
     "src/main/java/com/winlator/xenvironment/components/PulseAudioComponent.java": [
         "ProcessHelper.startProcess(command, envVars, workingDir)",
