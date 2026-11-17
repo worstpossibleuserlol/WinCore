@@ -1097,6 +1097,13 @@ new_box64_extract = """    private void extractBox64File() {
             );
         }
 
+        if (!repairBox64Interpreter(box64File, rootDir, context)) {
+            throw new IllegalStateException(
+                "Box64 ELF interpreter does not match this WinCore installation. " +
+                    "The selected RootFS loader is missing or unreadable. Your container data is preserved."
+            );
+        }
+
         FileUtils.chmod(box64File, 0771);
         if (!box64File.canExecute()) {
             throw new IllegalStateException(
@@ -1155,7 +1162,82 @@ new_box64_extract = """    private void extractBox64File() {
             android.util.Log.e("WinCore/Box64", "Could not read Box64 ELF header", error);
             return false;
         }
-    }"""
+    }
+
+    private boolean repairBox64Interpreter(File executable, File rootDir, Context context) {
+        final String upstreamPath = "/data/data/com.winlator/files/rootfs/lib/ld-linux-aarch64.so.1";
+        try {
+            String dataDir = context.getApplicationInfo().dataDir;
+            String legacyDataDir = dataDir.replace("/data/user/0/", "/data/data/");
+            String absoluteRoot = rootDir.getAbsolutePath();
+            if (!absoluteRoot.startsWith(dataDir)) {
+                android.util.Log.e("WinCore/Box64", "Unexpected RootFS path: " + absoluteRoot);
+                return false;
+            }
+
+            String legacyRoot = legacyDataDir + absoluteRoot.substring(dataDir.length());
+            String interpreterPath = new File(legacyRoot, "lib/ld-linux-aarch64.so.1").getAbsolutePath();
+            File loader = new File(interpreterPath);
+            if (!loader.isFile() || !loader.canRead()) {
+                android.util.Log.e("WinCore/Box64", "WinCore RootFS loader is missing: " + interpreterPath);
+                return false;
+            }
+
+            byte[] oldBytes = upstreamPath.getBytes();
+            byte[] newBytes = interpreterPath.getBytes();
+            if (newBytes.length > oldBytes.length) {
+                android.util.Log.e("WinCore/Box64", "WinCore interpreter path is too long for the bundled ELF field");
+                return false;
+            }
+
+            try (RandomAccessFile file = new RandomAccessFile(executable, "rw")) {
+                if (file.length() > Integer.MAX_VALUE) return false;
+                byte[] image = new byte[(int)file.length()];
+                file.seek(0);
+                file.readFully(image);
+
+                int oldOffset = -1;
+                int newOffset = -1;
+                int oldMatches = 0;
+                int newMatches = 0;
+                for (int i = 0; i <= image.length - oldBytes.length; i++) {
+                    boolean oldMatch = true;
+                    boolean newMatch = true;
+                    for (int j = 0; j < oldBytes.length; j++) {
+                        if (image[i + j] != oldBytes[j]) oldMatch = false;
+                        if (image[i + j] != newBytes[j]) newMatch = false;
+                        if (!oldMatch && !newMatch) break;
+                    }
+                    if (oldMatch) { oldOffset = i; oldMatches++; }
+                    if (newMatch) { newOffset = i; newMatches++; }
+                }
+
+                if (newMatches == 1 && oldMatches == 0) return true;
+                if (oldMatches != 1 || newMatches != 0) {
+                    android.util.Log.e("WinCore/Box64", "Could not uniquely locate Box64 PT_INTERP string");
+                    return false;
+                }
+
+                byte[] replacement = new byte[oldBytes.length];
+                System.arraycopy(newBytes, 0, replacement, 0, newBytes.length);
+                file.seek(oldOffset);
+                file.write(replacement);
+                file.getFD().sync();
+
+                android.util.Log.i(
+                    "WinCore/Box64",
+                    "ELF interpreter was rewritten for WinCore: " + upstreamPath + " -> " + interpreterPath
+                );
+                return true;
+            }
+        }
+        catch (Exception error) {
+            android.util.Log.e("WinCore/Box64", "Could not rewrite Box64 ELF interpreter", error);
+            return false;
+        }
+    }
+
+"""
 if old_box64_extract in guest:
     guest = guest.replace(old_box64_extract, new_box64_extract, 1)
 elif "Box64 is missing or invalid after recovery" not in guest:
@@ -1167,7 +1249,7 @@ guest = guest.replace(
 )
 guest = guest.replace(
     "import java.io.File;\n",
-    "import java.io.File;\nimport java.io.FileInputStream;\nimport java.io.FileOutputStream;\nimport java.io.IOException;\n"
+    "import java.io.File;\nimport java.io.FileInputStream;\nimport java.io.FileOutputStream;\nimport java.io.IOException;\nimport java.io.RandomAccessFile;\n"
 )
 guest = guest.replace("    private static int pid = -1;\n", "    private static java.lang.Process guestProcess;\n")
 old_start = """    @Override
@@ -1399,6 +1481,9 @@ checks = {
         "TarCompressorUtils.Type.ZSTD",
         "isBox64RuntimeReady(box64File)",
         "header[4] == 2",
+        "repairBox64Interpreter(box64File, rootDir, context)",
+        "private boolean repairBox64Interpreter(File executable, File rootDir, Context context)",
+        "ELF interpreter was rewritten for WinCore",
         "FileUtils.chmod(box64File, 0771)",
         "preferences.edit().putString(\"current_box64_version\", box64Version).apply()"
     ],
