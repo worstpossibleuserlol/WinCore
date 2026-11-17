@@ -279,9 +279,17 @@ public final class WinCoreMaliCompatibility {
         target.append(value.trim());
     }
 
+    public static boolean isVirGLFallbackEnabled(Context context) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        return preferences.getBoolean("wincore_mali_use_virgl_fallback", false);
+    }
+
     public static String getDefaultGraphicsDriver(Context context) {
         if (isAutomaticProfileEnabled(context) && isMali(context)) {
-            return GraphicsDrivers.VORTEK + "," + GraphicsDrivers.DEFAULT_OPENGL_DRIVER;
+            String openGL = isVirGLFallbackEnabled(context)
+                ? GraphicsDrivers.VIRGL
+                : GraphicsDrivers.DEFAULT_OPENGL_DRIVER;
+            return GraphicsDrivers.VORTEK + "," + openGL;
         }
         return GraphicsDrivers.getDefaultDriver(context);
     }
@@ -308,7 +316,10 @@ public final class WinCoreMaliCompatibility {
             );
             resolved[0] = GraphicsDrivers.VORTEK;
         }
-        if (!GraphicsDrivers.isOpenGLDriver(resolved[1])) {
+        if (isVirGLFallbackEnabled(context)) {
+            resolved[1] = GraphicsDrivers.VIRGL;
+        }
+        else if (!GraphicsDrivers.isOpenGLDriver(resolved[1])) {
             resolved[1] = GraphicsDrivers.DEFAULT_OPENGL_DRIVER;
         }
         return resolved;
@@ -328,6 +339,7 @@ public final class WinCoreMaliCompatibility {
 
     public static void configureWineD3D(
         Context context,
+        String[] graphicsDriver,
         String dxwrapper,
         KeyValueSet[] config
     ) {
@@ -335,19 +347,30 @@ public final class WinCoreMaliCompatibility {
             !DXWrappers.WINED3D.equals(dxwrapper) || config == null ||
             config.length == 0 || config[0] == null) return;
 
-        if (config[0].get("renderer", "").isEmpty() || "gl".equals(config[0].get("renderer", ""))) {
-            config[0].put("renderer", "vulkan");
-        }
+        boolean useVirGL = isVirGLFallbackEnabled(context) ||
+            (graphicsDriver != null && graphicsDriver.length > 1 &&
+                GraphicsDrivers.VIRGL.equals(graphicsDriver[1]));
+        String renderer = useVirGL ? "gl" : "vulkan";
+        config[0].put("renderer", renderer);
     }
 
-    public static void applyEnvironment(Context context, String dxwrapper, EnvVars envVars) {
-        if (!isAutomaticProfileEnabled(context) || !isMali(context) ||
-            !DXWrappers.WINED3D.equals(dxwrapper) || envVars == null) return;
+    public static void applyEnvironment(Context context, String[] graphicsDriver, String dxwrapper, EnvVars envVars) {
+        if (!isAutomaticProfileEnabled(context) || !isMali(context) || envVars == null) return;
 
-        if (!envVars.has("MESA_GL_VERSION_OVERRIDE")) {
-            envVars.put("MESA_GL_VERSION_OVERRIDE", "3.2COMPAT");
-        }
-        if (!envVars.has("MESA_GLSL_VERSION_OVERRIDE")) {
+        boolean useVirGL = isVirGLFallbackEnabled(context) ||
+            (graphicsDriver != null && graphicsDriver.length > 1 &&
+                GraphicsDrivers.VIRGL.equals(graphicsDriver[1]));
+
+        // Community Mali profiles report fewer stability problems with threaded
+        // GL disabled and Box64's conservative memory/signal options enabled.
+        envVars.put("mesa_glthread", "false");
+        if (!envVars.has("BOX64_MMAP32")) envVars.put("BOX64_MMAP32", "1");
+        if (!envVars.has("BOX64_SAFEFLAGS")) envVars.put("BOX64_SAFEFLAGS", "2");
+
+        if (DXWrappers.WINED3D.equals(dxwrapper)) {
+            if (!useVirGL) {
+                envVars.put("MESA_GL_VERSION_OVERRIDE", "3.2COMPAT");
+            }
             envVars.put("MESA_GLSL_VERSION_OVERRIDE", "150");
         }
     }
@@ -379,7 +402,14 @@ if 'android:id="@+id/CBWinCoreMaliCompatibility"' not in layout:
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:text="@string/wincore_mali_automatic_compatibility" />""" + layout[end:]
+                        android:text="@string/wincore_mali_automatic_compatibility" />
+
+                    <CheckBox
+                        android:id="@+id/CBWinCoreMaliVirGLFallback"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="@string/wincore_mali_virgl_fallback" />""" + layout[end:]
 layout_path.write_text(layout, encoding="utf-8")
 
 strings_path = required("src/main/res/values/strings.xml")
@@ -387,7 +417,8 @@ strings = strings_path.read_text(encoding="utf-8")
 if 'name="wincore_mali_automatic_compatibility"' not in strings:
     strings = strings.replace(
         "</resources>",
-        '    <string name="wincore_mali_automatic_compatibility">Automatic Mali graphics compatibility (Vortek + WineD3D Vulkan path)</string>\n</resources>',
+        '    <string name="wincore_mali_automatic_compatibility">Automatic Mali graphics compatibility (Vortek + WineD3D)</string>\n' +
+        '    <string name="wincore_mali_virgl_fallback">Use VirGL fallback for Mali (older DirectX / OpenGL games)</string>\n</resources>',
         1
     )
 strings_path.write_text(strings, encoding="utf-8")
@@ -408,7 +439,9 @@ if "CBWinCoreMaliCompatibility" not in settings:
         mali_binding_anchor,
         mali_binding_anchor +
         '        CheckBox maliCompatibility = view.findViewById(R.id.CBWinCoreMaliCompatibility);\n'
-        '        maliCompatibility.setChecked(preferences.getBoolean(WinCoreMaliCompatibility.AUTO_PROFILE_KEY, true));\n',
+        '        maliCompatibility.setChecked(preferences.getBoolean(WinCoreMaliCompatibility.AUTO_PROFILE_KEY, true));\n'
+        '        CheckBox maliVirglFallback = view.findViewById(R.id.CBWinCoreMaliVirGLFallback);\n'
+        '        maliVirglFallback.setChecked(preferences.getBoolean("wincore_mali_use_virgl_fallback", false));\n',
         1
     )
 mali_save_anchor = '            editor.putBoolean("wincore_live_monitor", ((CheckBox)view.findViewById(R.id.CBWinCoreLiveMonitor)).isChecked());\n'
@@ -418,7 +451,8 @@ if 'editor.putBoolean(WinCoreMaliCompatibility.AUTO_PROFILE_KEY' not in settings
     settings = settings.replace(
         mali_save_anchor,
         mali_save_anchor +
-        '            editor.putBoolean(WinCoreMaliCompatibility.AUTO_PROFILE_KEY, ((CheckBox)view.findViewById(R.id.CBWinCoreMaliCompatibility)).isChecked());\n',
+        '            editor.putBoolean(WinCoreMaliCompatibility.AUTO_PROFILE_KEY, ((CheckBox)view.findViewById(R.id.CBWinCoreMaliCompatibility)).isChecked());\n'
+        '            editor.putBoolean("wincore_mali_use_virgl_fallback", ((CheckBox)view.findViewById(R.id.CBWinCoreMaliVirGLFallback)).isChecked());\n',
         1
     )
 settings_path.write_text(settings, encoding="utf-8")
@@ -596,7 +630,7 @@ new_parse = """            String originallySelectedVulkanDriver = GraphicsDrive
             this.dxwrapper = DXWrappers.parseIdentifier(dxwrapper);
             this.dxwrapper = WinCoreMaliCompatibility.resolveDXWrapper(this, this.dxwrapper);
             this.dxwrapperConfig = DXWrappers.parseConfigs(dxwrapper, dxwrapperConfig);
-            WinCoreMaliCompatibility.configureWineD3D(this, this.dxwrapper, this.dxwrapperConfig);"""
+            WinCoreMaliCompatibility.configureWineD3D(this, this.graphicsDriver, this.dxwrapper, this.dxwrapperConfig);"""
 if old_parse in display:
     display = display.replace(old_parse, new_parse, 1)
 elif "WinCoreMaliCompatibility.resolveGraphicsDriver(this" not in display:
@@ -607,7 +641,7 @@ env_anchor = """            envVars.putAll(container.getEnvVars());
             if (!envVars.has("WINEESYNC")) envVars.put("WINEESYNC", "1");"""
 env_replacement = """            envVars.putAll(container.getEnvVars());
             if (shortcut != null) envVars.putAll(shortcut.getExtra("envVars"));
-            WinCoreMaliCompatibility.applyEnvironment(this, dxwrapper, envVars);
+            WinCoreMaliCompatibility.applyEnvironment(this, graphicsDriver, dxwrapper, envVars);
             if (!envVars.has("WINEESYNC")) envVars.put("WINEESYNC", "1");"""
 if env_anchor in display:
     display = display.replace(env_anchor, env_replacement, 1)
@@ -732,8 +766,8 @@ start_process_method = r'''    public static java.lang.Process startProcess(
     ) {
         java.lang.Process process = null;
         try {
-            ArrayList<String> arguments = splitCommand(command);
-            if (arguments.isEmpty()) {
+            String[] arguments = splitCommand(command);
+            if (arguments.length == 0) {
                 throw new IllegalArgumentException("The process command is empty");
             }
 
@@ -765,7 +799,7 @@ start_process_method = r'''    public static java.lang.Process startProcess(
 
             android.util.Log.i(
                 "WinCore/ProcessHelper",
-                "Started process: " + arguments.get(0) +
+                "Started process: " + arguments[0] +
                     " (workingDir=" + (workingDir != null ? workingDir.getAbsolutePath() : "<default>") + ")"
             );
             return process;
