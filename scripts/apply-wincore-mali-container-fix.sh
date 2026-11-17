@@ -1054,6 +1054,35 @@ new_box64_extract = """    private void extractBox64File() {
             }
         }
 
+        // Retry through Winlator's own component installer as a second
+        // extraction route. This handles archive-stream/extractor failures
+        // that leave the expected executable absent despite a valid asset.
+        if (!isBox64RuntimeReady(box64File)) {
+            try {
+                android.util.Log.w(
+                    "WinCore/Box64",
+                    "Direct archive extraction did not produce Box64; retrying GeneralComponents installer"
+                );
+                GeneralComponents.extractFile(
+                    GeneralComponents.Type.BOX64,
+                    context,
+                    DefaultVersion.BOX64,
+                    DefaultVersion.BOX64
+                );
+                if (isBox64RuntimeReady(box64File)) {
+                    box64Version = DefaultVersion.BOX64;
+                    extractionSucceeded = true;
+                }
+            }
+            catch (RuntimeException recoveryError) {
+                android.util.Log.e(
+                    "WinCore/Box64",
+                    "GeneralComponents Box64 recovery also failed",
+                    recoveryError
+                );
+            }
+        }
+
         if (!isBox64RuntimeReady(box64File) && isBox64RuntimeReady(alternateBox64File)) {
             copyBox64Executable(alternateBox64File, box64File);
         }
