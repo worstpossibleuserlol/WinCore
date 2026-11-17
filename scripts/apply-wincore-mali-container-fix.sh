@@ -38,6 +38,12 @@ gpu = add_import(
     "import java.util.concurrent.CountDownLatch;\nimport java.util.concurrent.TimeUnit;\n",
     "GPUHelper"
 )
+gpu = add_import(
+    gpu,
+    "import javax.microedition.khronos.egl.EGLDisplay;\n",
+    "import javax.microedition.khronos.egl.EGLSurface;\n",
+    "GPUHelper EGL surface"
+)
 new_probe = r'''    private static ArrayMap<String, String> loadGPUInformation(Context context) {
         final ArrayMap<String, String> gpuInfo = new ArrayMap<>();
         gpuInfo.put("renderer", "");
@@ -561,6 +567,10 @@ create_block = create_block.replace(
 )
 create_block = create_block.replace(
     "        catch (JSONException e) {}",
+    '        catch (JSONException error) { throw new IllegalStateException("Container metadata is invalid", error); }'
+)
+create_block = create_block.replace(
+    '        catch (JSONException error) { throw new IllegalStateException("Container metadata is invalid", error); }\n        return null;',
     '        catch (JSONException error) { throw new IllegalStateException("Container metadata is invalid", error); }'
 )
 manager = manager[:create_start] + create_block + manager[create_end:]
