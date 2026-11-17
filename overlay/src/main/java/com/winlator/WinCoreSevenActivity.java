@@ -1435,7 +1435,12 @@ public final class WinCoreSevenActivity extends Activity {
         out.append("rootfs marker: ").append(rootFS.getRFSVersionFile().isFile() ? "present" : "missing").append("\n");
         out.append("rootfs valid: ").append(rootFS.isValid()).append("\n");
         out.append("wine binary: ").append(new File(rootFS.getRootDir(), "opt/wine/bin/wine").isFile()).append("\n");
-        out.append("box64 binary: ").append(new File(rootFS.getRootDir(), "usr/bin/box64").isFile()).append("\n");
+        File box64UsrBin = new File(rootFS.getRootDir(), "usr/bin/box64");
+        File box64UsrLocalBin = new File(rootFS.getRootDir(), "usr/local/bin/box64");
+        boolean box64Found = box64UsrBin.isFile() || box64UsrLocalBin.isFile();
+        out.append("box64 binary: ").append(box64Found).append("\n");
+        out.append("box64 path: ").append(box64UsrBin.isFile() ? box64UsrBin.getAbsolutePath() :
+            box64UsrLocalBin.isFile() ? box64UsrLocalBin.getAbsolutePath() : "not found in usr/bin or usr/local/bin").append("\n");
         out.append("source base pin: 30aafbdb9eea47b92669201621e03cd2cf04540d\n");
         out.append("This checks expected local runtime files against the pinned Winlator source base; it does not contact or modify upstream servers.");
         setStatus(out.toString());
