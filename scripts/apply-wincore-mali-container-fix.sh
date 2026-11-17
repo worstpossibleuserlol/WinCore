@@ -987,6 +987,10 @@ new_box64_extract = """    private void extractBox64File() {
         return box64File != null && box64File.isFile() &&
             box64File.length() > 0 && box64File.canRead();
     }"""
+if old_box64_extract in guest:
+    guest = guest.replace(old_box64_extract, new_box64_extract, 1)
+elif "Box64 runtime was not extracted successfully" not in guest:
+    raise SystemExit("GuestProgramLauncherComponent: Box64 extraction method anchor changed")
 guest = guest.replace("import android.os.Process;\n", "")
 guest = guest.replace("    private static int pid = -1;\n", "    private static java.lang.Process guestProcess;\n")
 old_start = """    @Override
