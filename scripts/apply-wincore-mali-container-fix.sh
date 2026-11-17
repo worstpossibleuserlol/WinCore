@@ -1269,12 +1269,22 @@ checks = {
         "ProcessHelper.startProcess(command, envVars, rootDir)",
         "WinCore-Guest-Process-Waiter",
         "guestProcess.destroyForcibly()",
-        "Box64 could not be installed",
-        "extractBox64Archive(context, rootDir, requestedVersion)",
+        "Box64 is missing or invalid after recovery",
+        "GeneralComponents.isBuiltinComponent(GeneralComponents.Type.BOX64, box64Version)",
         "TarCompressorUtils.Type.ZSTD",
         "isBox64RuntimeReady(box64File)",
+        "header[4] == 2",
         "FileUtils.chmod(box64File, 0771)",
-        "preferences.edit().putString(\"current_box64_version\", actualVersion).apply()"
+        "preferences.edit().putString(\"current_box64_version\", box64Version).apply()"
+    ],
+    "src/main/java/com/winlator/core/ProcessHelper.java": [
+        "createProcessOutputThread(InputStream inputStream, String executable)",
+        "Could not launch command:",
+        "processBuilder.redirectErrorStream(true)"
+    ],
+    "src/main/java/com/winlator/core/TarCompressorUtils.java": [
+        "Could not open packaged archive:",
+        "Archive extraction failed into "
     ],
     "src/main/java/com/winlator/xenvironment/components/PulseAudioComponent.java": [
         "ProcessHelper.startProcess(command, envVars, workingDir)",
