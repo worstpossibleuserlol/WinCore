@@ -655,6 +655,14 @@ display_source = display_source.replace(
     1
 )
 old_startup = """        Executors.newSingleThreadExecutor().execute(() -> {
+            if (!isGenerateWineprefix()) {
+                setupWineSystemFiles();
+                extractGraphicsDriverFiles();
+                changeWineAudioDriver();
+            }
+            setupXEnvironment();
+        });"""
+new_startup = """        Executors.newSingleThreadExecutor().execute(() -> {
             try {
                 if (!isGenerateWineprefix()) {
                     setupWineSystemFiles();
@@ -671,7 +679,7 @@ old_startup = """        Executors.newSingleThreadExecutor().execute(() -> {
                     Throwable cause = error;
                     int depth = 0;
                     while (cause != null && depth < 6) {
-                        detail.append(depth == 0 ? "\n\n" : "\nCaused by: ");
+                        detail.append(depth == 0 ? "\\n\\n" : "\\nCaused by: ");
                         detail.append(cause.getClass().getSimpleName());
                         String message = cause.getMessage();
                         if (message != null && !message.trim().isEmpty()) {
@@ -697,25 +705,6 @@ old_startup = """        Executors.newSingleThreadExecutor().execute(() -> {
                         })
                         .setCancelable(false)
                         .show();
-                });
-            }
-        });"""
-new_startup = """        Executors.newSingleThreadExecutor().execute(() -> {
-            try {
-                if (!isGenerateWineprefix()) {
-                    setupWineSystemFiles();
-                    extractGraphicsDriverFiles();
-                    changeWineAudioDriver();
-                }
-                setupXEnvironment();
-            }
-            catch (Exception error) {
-                android.util.Log.e("WinCore", "Container startup failed", error);
-                runOnUiThread(() -> {
-                    preloaderDialog.close();
-                    String detail = error.getMessage();
-                    if (detail == null || detail.trim().isEmpty()) detail = error.getClass().getSimpleName();
-                    Toast.makeText(this, "Container failed to start: " + detail, Toast.LENGTH_LONG).show();
                 });
             }
         });"""
