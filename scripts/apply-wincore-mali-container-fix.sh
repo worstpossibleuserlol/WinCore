@@ -723,15 +723,18 @@ detail = add_import(
     "import android.widget.Toast;\n",
     "ContainerDetailFragment creation error"
 )
-old_callback = """                    manager.createContainerAsync(data, (container) -> {
-                        if (container != null) {
-                            this.container = container;
-                            saveWineRegistryKeys(view);
-                        }
-                        preloaderDialog.close();
-                        getActivity().onBackPressed();
-                    });"""
-new_callback = """                    manager.createContainerAsync(data, (container) -> {
+callback_start_marker = "manager.createContainerAsync(data, (container) -> {"
+callback_start = detail.find(callback_start_marker)
+if callback_start < 0:
+    if "manager.getLastOperationError()" not in detail:
+        raise SystemExit("ContainerDetailFragment: create-container callback anchor changed")
+else:
+    callback_end_marker = "                    });"
+    callback_end = detail.find(callback_end_marker, callback_start)
+    if callback_end < 0:
+        raise SystemExit("ContainerDetailFragment: create-container callback end was not found")
+    callback_end += len(callback_end_marker)
+    new_callback = """manager.createContainerAsync(data, (container) -> {
                         if (container == null) {
                             preloaderDialog.close();
                             String detail = manager.getLastOperationError();
@@ -743,14 +746,15 @@ new_callback = """                    manager.createContainerAsync(data, (contai
                             return;
                         }
                         this.container = container;
+                        String selectedWinCoreProfile = WinCoreProfileControls.getSelectedProfile(sWinCoreDeviceProfile);
+                        container.putExtra("wincore_cpu_profile",
+                            WinCoreDeviceProfile.GLOBAL.equals(selectedWinCoreProfile) ? null : selectedWinCoreProfile);
+                        container.saveData();
                         saveWineRegistryKeys(view);
                         preloaderDialog.close();
                         getActivity().onBackPressed();
                     });"""
-if old_callback in detail:
-    detail = detail.replace(old_callback, new_callback, 1)
-elif "manager.getLastOperationError()" not in detail:
-    raise SystemExit("ContainerDetailFragment: create-container callback anchor changed")
+    detail = detail[:callback_start] + new_callback + detail[callback_end:]
 detail_path.write_text(detail, encoding="utf-8")
 
 # 4. Guest and PulseAudio processes are held as Process objects. The guest
