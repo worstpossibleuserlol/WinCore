@@ -260,13 +260,17 @@ public final class WinCoreMaliCompatibility {
         append(identity, Build.DEVICE);
         append(identity, Build.PRODUCT);
         append(identity, Build.MANUFACTURER);
+        append(identity, Build.MODEL);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) append(identity, Build.SOC_MODEL);
 
         String value = identity.toString().toLowerCase(Locale.US);
         if (value.contains("mali")) return true;
 
-        // Fallback for the Dimensity 7100 family when EGL cannot return a renderer.
-        return value.contains("dimensity 7100");
+        // Device-specific fallback when EGL cannot return a renderer.
+        // Infinix Note Edge X6887 uses Dimensity 7100 / Mali-G610 MC2.
+        return value.contains("dimensity 7100") ||
+            value.contains("mt6878") ||
+            value.contains("x6887");
     }
 
     private static void append(StringBuilder target, String value) {
@@ -331,7 +335,7 @@ public final class WinCoreMaliCompatibility {
             !DXWrappers.WINED3D.equals(dxwrapper) || config == null ||
             config.length == 0 || config[0] == null) return;
 
-        if (config[0].get("renderer").isEmpty() || "gl".equals(config[0].get("renderer"))) {
+        if (config[0].get("renderer", "").isEmpty() || "gl".equals(config[0].get("renderer", ""))) {
             config[0].put("renderer", "vulkan");
         }
     }
@@ -392,7 +396,7 @@ settings_path = required("src/main/java/com/winlator/SettingsFragment.java")
 settings = settings_path.read_text(encoding="utf-8")
 settings = add_import(
     settings,
-    "import com.winlator.WinCoreDeviceProfile;\n",
+    "import com.winlator.box64.Box64PresetManager;\n",
     "import com.winlator.WinCoreMaliCompatibility;\n",
     "SettingsFragment Mali compatibility"
 )
