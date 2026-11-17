@@ -771,7 +771,25 @@ detail_path.write_text(detail, encoding="utf-8")
 #    startup path no longer needs reflective access to Android's private PID.
 process_path = required("src/main/java/com/winlator/core/ProcessHelper.java")
 process = process_path.read_text(encoding="utf-8")
-start_process_method = r'''    public static java.lang.Process startProcess(
+start_process_method = r'''    private static void createProcessOutputThread(InputStream inputStream, String executable) {
+        Thread thread = new Thread(() -> {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (!line.trim().isEmpty()) {
+                        android.util.Log.i("WinCore/ProcessOutput", executable + ": " + line);
+                    }
+                }
+            }
+            catch (IOException error) {
+                android.util.Log.w("WinCore/ProcessOutput", "Could not read process output for " + executable, error);
+            }
+        }, "WinCore-Process-Diagnostics");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    public static java.lang.Process startProcess(
         String command,
         EnvVars envVars,
         File workingDir
@@ -794,7 +812,8 @@ start_process_method = r'''    public static java.lang.Process startProcess(
             }
 
             if (debugCallbacks.isEmpty()) {
-                processBuilder.redirectOutput(new File("/dev/null")).redirectErrorStream(true);
+                // Do not discard Box64 stderr. Merge and drain it to Android logcat.
+                processBuilder.redirectErrorStream(true);
             }
 
             Map<String, String> environment = processBuilder.environment();
@@ -807,6 +826,9 @@ start_process_method = r'''    public static java.lang.Process startProcess(
             if (!debugCallbacks.isEmpty()) {
                 createDebugThread(process.getInputStream());
                 createDebugThread(process.getErrorStream());
+            }
+            else {
+                createProcessOutputThread(process.getInputStream(), arguments[0]);
             }
 
             android.util.Log.i(
@@ -823,13 +845,17 @@ start_process_method = r'''    public static java.lang.Process startProcess(
                     android.util.Log.w("WinCore/ProcessHelper", "Could not terminate failed process", cleanupError);
                 }
             }
+            String reason = error.getMessage() != null ? error.getMessage() : error.getClass().getSimpleName();
             android.util.Log.e(
                 "WinCore/ProcessHelper",
                 "Failed to start command: " + command +
-                    " (workingDir=" + (workingDir != null ? workingDir.getAbsolutePath() : "<default>") + ")",
+                    " (workingDir=" + (workingDir != null ? workingDir.getAbsolutePath() : "<default>") + "): " + reason,
                 error
             );
-            return null;
+            throw new IllegalStateException(
+                "Could not launch command: " + command + ". " + reason,
+                error
+            );
         }
     }
 
@@ -930,84 +956,127 @@ new_box64_extract = """    private void extractBox64File() {
         File box64File = new File(rootDir, "usr/local/bin/box64");
         File box64Directory = box64File.getParentFile();
         if (box64Directory == null || (!box64Directory.isDirectory() && !box64Directory.mkdirs())) {
-            throw new IllegalStateException("Could not prepare the Box64 directory: " +
-                (box64Directory != null ? box64Directory.getAbsolutePath() : "<null>"));
+            throw new IllegalStateException(
+                "Could not prepare the RootFS Box64 directory: " +
+                    (box64Directory != null ? box64Directory.getAbsolutePath() : "<null>")
+            );
         }
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        String requestedVersion = preferences.getString("box64_version", DefaultVersion.BOX64);
-        String installedVersion = preferences.getString("current_box64_version", "");
-        boolean ready = isBox64RuntimeReady(box64File);
+        String box64Version = preferences.getString("box64_version", DefaultVersion.BOX64);
+        String currentBox64Version = preferences.getString("current_box64_version", "");
+        boolean extractionSucceeded = box64Version.equals(currentBox64Version) &&
+            isBox64RuntimeReady(box64File);
 
-        if (!ready || !requestedVersion.equals(installedVersion)) {
-            if (box64File.exists() && !box64File.delete()) {
-                android.util.Log.w("WinCore/Box64", "Could not remove stale Box64 executable before extraction");
+        if (!extractionSucceeded) {
+            if (GeneralComponents.isBuiltinComponent(GeneralComponents.Type.BOX64, box64Version)) {
+                String packagedArchive = "box64/box64-" + box64Version + ".tzst";
+                extractionSucceeded = TarCompressorUtils.extract(
+                    TarCompressorUtils.Type.ZSTD, context, packagedArchive, rootDir
+                );
+                if (!extractionSucceeded) {
+                    android.util.Log.e(
+                        "WinCore/Box64",
+                        "Packaged Box64 extraction returned failure for " + packagedArchive
+                    );
+                }
             }
-            boolean extracted = extractBox64Archive(context, rootDir, requestedVersion);
-            ready = extracted && isBox64RuntimeReady(box64File);
-            android.util.Log.i("WinCore/Box64", "Requested Box64 " + requestedVersion +
-                " extraction=" + extracted + ", executableReady=" + ready);
+            else {
+                File customArchive = new File(
+                    GeneralComponents.getComponentDir(GeneralComponents.Type.BOX64, context),
+                    "box64-" + box64Version + ".tzst"
+                );
+                extractionSucceeded = TarCompressorUtils.extract(
+                    TarCompressorUtils.Type.ZSTD, customArchive, rootDir
+                );
+                if (!extractionSucceeded) {
+                    android.util.Log.w(
+                        "WinCore/Box64",
+                        "Custom Box64 archive could not be extracted: " + customArchive.getAbsolutePath()
+                    );
+                }
+            }
         }
 
-        String actualVersion = requestedVersion;
-        if (!ready) {
-            android.util.Log.w("WinCore/Box64", "Requested Box64 archive failed; retrying packaged " +
-                DefaultVersion.BOX64);
-            if (box64File.exists()) box64File.delete();
-            boolean fallbackExtracted = extractBox64Archive(context, rootDir, DefaultVersion.BOX64);
-            ready = fallbackExtracted && isBox64RuntimeReady(box64File);
-            actualVersion = DefaultVersion.BOX64;
-            android.util.Log.i("WinCore/Box64", "Fallback Box64 extraction=" + fallbackExtracted +
-                ", executableReady=" + ready);
+        // Never trust a version preference by itself. Recover from a missing,
+        // truncated, or wrong-architecture executable with the packaged default.
+        if (!isBox64RuntimeReady(box64File)) {
+            String fallbackArchive = "box64/box64-" + DefaultVersion.BOX64 + ".tzst";
+            android.util.Log.w("WinCore/Box64", "Box64 is missing or invalid; extracting " + fallbackArchive);
+            boolean fallbackSucceeded = TarCompressorUtils.extract(
+                TarCompressorUtils.Type.ZSTD, context, fallbackArchive, rootDir
+            );
+            if (isBox64RuntimeReady(box64File)) {
+                box64Version = DefaultVersion.BOX64;
+                extractionSucceeded = fallbackSucceeded;
+            }
         }
 
-        if (!ready) {
+        if (!isBox64RuntimeReady(box64File)) {
             throw new IllegalStateException(
-                "Box64 could not be installed. Expected " + box64File.getAbsolutePath() +
-                "; requested archive=" + requestedVersion + "; packaged fallback=" +
-                DefaultVersion.BOX64 + ". Check that the APK contains box64/box64-" +
-                DefaultVersion.BOX64 + ".tzst and that RootFS storage is writable. " +
-                "Your containers have not been deleted."
+                "Box64 is missing or invalid after recovery. Expected an ARM64 ELF executable at " +
+                    box64File.getAbsolutePath() +
+                    ". Checked the selected Box64 archive and packaged fallback " +
+                    DefaultVersion.BOX64 + ". Check the Box64 archive extraction log. " +
+                    "Your containers have not been deleted."
             );
         }
 
         FileUtils.chmod(box64File, 0771);
         if (!box64File.canExecute()) {
-            throw new IllegalStateException("Box64 was extracted but is not executable: " +
-                box64File.getAbsolutePath() + " (length=" + box64File.length() + ")");
-        }
-
-        preferences.edit()
-            .putString("box64_version", actualVersion)
-            .putString("current_box64_version", actualVersion)
-            .apply();
-        android.util.Log.i("WinCore/Box64", "Verified Box64 " + actualVersion +
-            " at " + box64File.getAbsolutePath() + " (" + box64File.length() + " bytes)");
-    }
-
-    private boolean extractBox64Archive(Context context, File rootDir, String version) {
-        if (GeneralComponents.isBuiltinComponent(GeneralComponents.Type.BOX64, version)) {
-            return TarCompressorUtils.extract(
-                TarCompressorUtils.Type.ZSTD, context,
-                "box64/box64-" + version + ".tzst", rootDir
+            throw new IllegalStateException(
+                "Box64 was extracted but Android cannot execute it: " + box64File.getAbsolutePath() +
+                    ". Check app storage permissions and available filesystem space."
             );
         }
-        File archive = new File(
-            GeneralComponents.getComponentDir(GeneralComponents.Type.BOX64, context),
-            "box64-" + version + ".tzst"
+
+        // Commit the version marker only when extraction has been verified.
+        // A failed custom update will be retried on the next launch.
+        if (extractionSucceeded || box64Version.equals(currentBox64Version)) {
+            preferences.edit().putString("current_box64_version", box64Version).apply();
+        }
+        android.util.Log.i(
+            "WinCore/Box64",
+            "Verified Box64 ARM64 executable: " + box64File.getAbsolutePath() +
+                " (" + box64File.length() + " bytes, executable=" + box64File.canExecute() + ")"
         );
-        return TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, archive, rootDir);
     }
 
     private boolean isBox64RuntimeReady(File box64File) {
-        return box64File != null && box64File.isFile() &&
-            box64File.length() > 0 && box64File.canRead();
+        if (box64File == null || !box64File.isFile() || box64File.length() < 4096 || !box64File.canRead()) {
+            return false;
+        }
+        try (FileInputStream input = new FileInputStream(box64File)) {
+            byte[] header = new byte[20];
+            int offset = 0;
+            while (offset < header.length) {
+                int count = input.read(header, offset, header.length - offset);
+                if (count < 0) return false;
+                offset += count;
+            }
+            int machine = (header[18] & 0xff) | ((header[19] & 0xff) << 8);
+            return (header[0] & 0xff) == 0x7f && header[1] == 'E' &&
+                header[2] == 'L' && header[3] == 'F' && header[4] == 2 &&
+                header[5] == 1 && machine == 183;
+        }
+        catch (IOException error) {
+            android.util.Log.e("WinCore/Box64", "Could not read Box64 ELF header", error);
+            return false;
+        }
     }"""
 if old_box64_extract in guest:
     guest = guest.replace(old_box64_extract, new_box64_extract, 1)
-elif "Box64 could not be installed" not in guest:
+elif "Box64 is missing or invalid after recovery" not in guest:
     raise SystemExit("GuestProgramLauncherComponent: Box64 extraction method anchor changed")
 guest = guest.replace("import android.os.Process;\n", "")
+guest = guest.replace(
+    "import com.winlator.core.GeneralComponents;\n",
+    "import com.winlator.core.GeneralComponents;\nimport com.winlator.core.TarCompressorUtils;\n"
+)
+guest = guest.replace(
+    "import java.io.File;\n",
+    "import java.io.File;\nimport java.io.FileInputStream;\nimport java.io.IOException;\n"
+)
 guest = guest.replace("    private static int pid = -1;\n", "    private static java.lang.Process guestProcess;\n")
 old_start = """    @Override
     public void start() {
@@ -1134,6 +1203,56 @@ if "Process.killProcess(pid)" in pulse or "private static int pid" in pulse:
 pulse_path.write_text(pulse, encoding="utf-8")
 
 # Do not rewrite runtime executable paths globally. The diagnostic checks both supported locations.
+
+
+# Log archive extraction failures instead of hiding the IOException behind false.
+tar_path = required("src/main/java/com/winlator/core/TarCompressorUtils.java")
+tar_source = tar_path.read_text(encoding="utf-8")
+old_asset_extract = """        catch (IOException e) {
+            return false;
+        }
+    }
+
+    public static boolean extract(Type type, Context context, Uri source, File destination)"""
+new_asset_extract = """        catch (IOException e) {
+            android.util.Log.e("WinCore/Archive", "Could not open packaged archive: " + assetFile, e);
+            return false;
+        }
+    }
+
+    public static boolean extract(Type type, Context context, Uri source, File destination)"""
+if old_asset_extract in tar_source:
+    tar_source = tar_source.replace(old_asset_extract, new_asset_extract, 1)
+elif "Could not open packaged archive:" not in tar_source:
+    raise SystemExit("TarCompressorUtils packaged-asset error anchor changed.")
+
+old_tar_extract = """        catch (IOException e) {
+            return false;
+        }
+    }
+
+    public static long getContentLength(Type type, Context context, String assetFile, File destination)"""
+new_tar_extract = """        catch (IOException e) {
+            android.util.Log.e(
+                "WinCore/Archive",
+                "Archive extraction failed into " + destination.getAbsolutePath(),
+                e
+            );
+            return false;
+        }
+    }
+
+    public static long getContentLength(Type type, Context context, String assetFile, File destination)"""
+if old_tar_extract in tar_source:
+    tar_source = tar_source.replace(old_tar_extract, new_tar_extract, 1)
+elif "Archive extraction failed into " not in tar_source:
+    raise SystemExit("TarCompressorUtils extraction error anchor changed.")
+tar_path.write_text(tar_source, encoding="utf-8")
+
+# Fail early when the pinned app submodule does not contain the bundled Box64 runtime.
+box64_archive = required("src/main/assets/box64/box64-0.4.4.tzst")
+if box64_archive.stat().st_size < 1000000:
+    raise SystemExit(f"Packaged Box64 archive is missing or implausibly small: {box64_archive}")
 
 # Verify the critical markers before Gradle compiles.
 checks = {
