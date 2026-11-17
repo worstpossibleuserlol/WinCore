@@ -33,7 +33,7 @@ jobs:
       - name: Install Android build components
         run: |
           sudo apt-get update
-          sudo apt-get install -y imagemagick python3-pil
+          sudo apt-get install -y imagemagick python3-pil zstd
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
           if [[ -z "$SDKMANAGER" ]]; then
             echo "Android SDK manager was not found under $ANDROID_HOME"
@@ -273,6 +273,15 @@ jobs:
           grep -q 'private static final ExecutorService IO_EXECUTOR' upstream/app/app/src/main/java/com/winlator/container/ContainerManager.java
           ! grep -q 'Executors.newSingleThreadExecutor().execute' upstream/app/app/src/main/java/com/winlator/container/ContainerManager.java
 
+      - name: Validate packaged Box64 runtime archive
+        run: |
+          set -euxo pipefail
+          BOX64_ARCHIVE="upstream/app/app/src/main/assets/box64/box64-0.4.4.tzst"
+          test -s "$BOX64_ARCHIVE"
+          test "$(stat -c '%s' "$BOX64_ARCHIVE")" -gt 1000000
+          zstd -t --quiet "$BOX64_ARCHIVE"
+          tar --zstd -tf "$BOX64_ARCHIVE" | sed 's#^\./##' | grep -Fx 'usr/local/bin/box64'
+
       - name: Build debug APK
         working-directory: upstream/app
         run: bash gradlew --no-daemon --stacktrace assembleDebug
@@ -288,6 +297,8 @@ jobs:
           grep -q "versionCode='$WINCORE_VERSION_CODE'" <<< "$BADGING"
           grep -q "versionName='$WINCORE_VERSION'" <<< "$BADGING"
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
+          BOX64_BYTES="$(unzip -p "$APK" assets/box64/box64-0.4.4.tzst | wc -c)"
+          test "$BOX64_BYTES" -gt 1000000
           mkdir -p dist
           cp "$APK" "dist/WinCore-$WINCORE_VERSION.apk"
 
