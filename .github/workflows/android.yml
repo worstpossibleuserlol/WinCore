@@ -94,8 +94,23 @@ jobs:
           test -s upstream/app/app/src/main/java/com/winlator/WinCoreProfileControls.java
           test -s upstream/app/app/src/main/java/com/winlator/WinCorePerformanceOverlay.java
 
-      - name: Apply WinCore 7.0.0 features, container fixes, About fixes, and user-supplied drawer branding
-        run: bash scripts/apply-wincore-7.0.0.sh
+      - name: Apply Mali compatibility and container reliability fixes (WinCore 7.0.0)
+        run: bash scripts/apply-wincore-mali-container-fix.sh upstream
+
+      - name: Verify Mali and container reliability patch
+        run: |
+          set -euxo pipefail
+          grep -q 'completed.await(1200, TimeUnit.MILLISECONDS)' upstream/app/app/src/main/java/com/winlator/core/GPUHelper.java
+          grep -q 'WinCoreMaliCompatibility.resolveGraphicsDriver(this' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
+          grep -q 'WinCoreMaliCompatibility.configureWineD3D(this, this.graphicsDriver' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
+          grep -q 'WinCoreMaliCompatibility.applyEnvironment(this, graphicsDriver, dxwrapper, envVars)' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
+          grep -q 'CBWinCoreMaliCompatibility' upstream/app/app/src/main/res/layout/settings_fragment.xml
+          grep -q 'CBWinCoreMaliVirGLFallback' upstream/app/app/src/main/res/layout/settings_fragment.xml
+          grep -q 'getLastOperationError()' upstream/app/app/src/main/java/com/winlator/container/ContainerManager.java
+          grep -q 'ProcessHelper.startProcess(command, envVars, rootDir)' upstream/app/app/src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java
+          grep -q 'WinCore-Guest-Process-Waiter' upstream/app/app/src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java
+          grep -q 'startupHandler.postDelayed(startupTimeout, 60000L)' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
+          grep -q 'versionName "7.0.0"' upstream/app/app/build.gradle
 
       - name: Verify WinCore 7.0.0 features, About dialog, text colors, and icon integrity
         run: |
