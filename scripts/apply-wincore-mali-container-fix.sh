@@ -976,12 +976,6 @@ guest = guest_path.read_text(encoding="utf-8")
 # every later launch to skip recovery while the executable was still missing.
 old_box64_extract = """    private void extractBox64File() {
         Context context = environment.getContext();
-        // Some bundled Box64 archives place the executable in usr/bin instead
-        // of usr/local/bin. Normalize that layout before and after extraction.
-        if (!isBox64RuntimeReady(box64File) && isBox64RuntimeReady(alternateBox64File)) {
-            copyBox64Executable(alternateBox64File, box64File);
-        }
-
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
         String box64Version = preferences.getString("box64_version", DefaultVersion.BOX64);
         String currentBox64Version = preferences.getString("current_box64_version", "");
@@ -1003,6 +997,11 @@ new_box64_extract = """    private void extractBox64File() {
                 "Could not prepare the RootFS Box64 directory: " +
                     (box64Directory != null ? box64Directory.getAbsolutePath() : "<null>")
             );
+        }
+
+        // Normalize older/custom archives that place Box64 in usr/bin.
+        if (!isBox64RuntimeReady(box64File) && isBox64RuntimeReady(alternateBox64File)) {
+            copyBox64Executable(alternateBox64File, box64File);
         }
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
