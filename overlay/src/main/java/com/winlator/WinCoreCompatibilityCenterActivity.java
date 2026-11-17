@@ -363,8 +363,9 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
 
     private String gameKey() {
         String name = gameName.getText().toString().trim().toLowerCase(Locale.ROOT);
-        if (name.isEmpty()) name = "default";
-        return name.replaceAll("[^a-z0-9._-]+", "_");
+        if (name.isEmpty()) return "default";
+        String safe = name.replaceAll("[^a-z0-9._-]+", "_");
+        return safe.equals(name) ? safe : safe + "_" + Integer.toUnsignedString(name.hashCode(), 16);
     }
 
     private JSONObject readFormProfile() {
@@ -407,7 +408,14 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
         gameCategory.setText(profile.optString("category", ""));
         String cover = profile.optString("coverUri", store.getString("cover_" + gameKey(), ""));
         coverUri = cover.isEmpty() ? null : Uri.parse(cover);
-        if (gameCover != null && coverUri != null) gameCover.setImageURI(coverUri);
+        if (gameCover != null) {
+            try { if (coverUri != null) gameCover.setImageURI(coverUri); else gameCover.setImageDrawable(null); }
+            catch (SecurityException | IllegalArgumentException error) {
+                coverUri = null;
+                gameCover.setImageDrawable(null);
+                appendOutput("Saved cover image is no longer accessible. Choose the image again.");
+            }
+        }
         select(rendererProfile, profile.optString("rendererProfile", "Automatic"));
         select(resolutionProfile, profile.optString("resolutionProfile", "Default"));
         String exe = profile.optString("executableUri", "");
@@ -441,7 +449,8 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
         intent.setType("*/*");
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-        startActivityForResult(intent, PICK_EXE);
+        try { startActivityForResult(intent, PICK_EXE); }
+        catch (ActivityNotFoundException error) { appendOutput("No file picker is available for Windows executables."); }
     }
 
     private void chooseGameCover() {
@@ -456,7 +465,8 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
     private void chooseGameFolder() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-        startActivityForResult(intent, PICK_GAME_FOLDER);
+        try { startActivityForResult(intent, PICK_GAME_FOLDER); }
+        catch (ActivityNotFoundException error) { appendOutput("No folder picker is available."); }
     }
 
     @Override
@@ -538,6 +548,7 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
     private JSONObject analyzePe(byte[] bytes) throws JSONException {
         JSONObject result = new JSONObject();
         JSONArray imports = new JSONArray();
+        HashSet<String> uniqueImports = new HashSet<>();
         result.put("format", "unknown");
         result.put("architecture", "Unknown");
         result.put("directX", "Not detected");
@@ -555,6 +566,10 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
         result.put("format", "Portable Executable");
         result.put("architecture", arch);
         int sections = u16(bytes, peOffset + 6);
+        if (sections == 0) {
+            result.put("error", "The PE file declares no sections.");
+            return result;
+        }
         int optionalSize = u16(bytes, peOffset + 20);
         int optional = peOffset + 24;
         if (!valid(bytes, optional, optionalSize) || optionalSize < 96) {
@@ -562,11 +577,22 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
             return result;
         }
         int magic = u16(bytes, optional);
+        if (magic != 0x10b && magic != 0x20b) {
+            result.put("error", "The PE optional-header magic is neither PE32 nor PE32+.");
+            return result;
+        }
         boolean pe32Plus = magic == 0x20b;
-        int directories = optional + (pe32Plus ? 112 : 96);
+        int directoryOffset = pe32Plus ? 112 : 96;
+        if (optionalSize < directoryOffset + 16) {
+            result.put("error", "The PE optional header does not contain a complete import data-directory entry.");
+            return result;
+        }
+        int directories = optional + directoryOffset;
         int sizeOfHeaders = i32(bytes, optional + 60);
         int importRva = valid(bytes, directories, 16) ? i32(bytes, directories + 8) : 0;
+        int importSize = valid(bytes, directories, 16) ? i32(bytes, directories + 12) : 0;
         int sectionTable = optional + optionalSize;
+        if (sections > 96) result.put("warning", "Section table exceeds the 96-section inspection limit; import results may be incomplete.");
         int[] virtualAddress = new int[Math.max(0, Math.min(sections, 96))];
         int[] virtualSize = new int[virtualAddress.length];
         int[] rawPointer = new int[virtualAddress.length];
@@ -579,15 +605,19 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
             rawSize[i] = i32(bytes, offset + 16);
             rawPointer[i] = i32(bytes, offset + 20);
         }
-        if (importRva > 0) {
+        if (importRva > 0 && importSize >= 20) {
             int importOffset = rvaOffset(importRva, sizeOfHeaders, virtualAddress, virtualSize, rawPointer, rawSize);
-            for (int i = 0; i < 512 && valid(bytes, importOffset + i * 20, 20); i++) {
+            int maxImportDescriptors = Math.min(512, importSize / 20);
+            for (int i = 0; i < maxImportDescriptors && valid(bytes, importOffset + i * 20, 20); i++) {
                 int descriptor = importOffset + i * 20;
                 int nameRva = i32(bytes, descriptor + 12);
                 if (nameRva == 0) break;
                 int nameOffset = rvaOffset(nameRva, sizeOfHeaders, virtualAddress, virtualSize, rawPointer, rawSize);
                 String dll = readCString(bytes, nameOffset, 128);
-                if (!dll.isEmpty()) imports.put(dll.toLowerCase(Locale.ROOT));
+                if (!dll.isEmpty()) {
+                    String normalizedDll = dll.toLowerCase(Locale.ROOT);
+                    if (uniqueImports.add(normalizedDll)) imports.put(normalizedDll);
+                }
             }
         }
         result.put("imports", imports);
@@ -736,7 +766,10 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
         if (!env.isEmpty()) {
             for (String line : env.split("\\R")) {
                 String trimmed = line.trim();
-                if (!trimmed.isEmpty() && (!trimmed.contains("=") || trimmed.startsWith("="))) result.append("Invalid environment-variable line: ").append(trimmed).append("\n");
+                int equals = trimmed.indexOf('=');
+            if (!trimmed.isEmpty() && (equals <= 0 || !trimmed.substring(0, equals).matches("[A-Za-z_][A-Za-z0-9_]*"))) {
+                result.append("Invalid environment-variable line: ").append(trimmed).append("\n");
+            }
             }
         }
         result.append("Box64 setting: ").append(box64Preset.getSelectedItem()).append(" (profile recommendation only).");
@@ -807,6 +840,11 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
     }
 
     private void saveProfile() {
+        String enteredName = gameName.getText().toString().trim();
+        if (enteredName.isEmpty() || enteredName.length() > 120) {
+            appendOutput("Profile not saved: enter a game name between 1 and 120 characters.");
+            return;
+        }
         JSONObject next = readFormProfile();
         String key = gameKey();
         String prefKey = "profile_" + key;
@@ -852,15 +890,19 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
             return;
         }
         try {
+            String selectedProfileKey = gameKey();
             JSONObject previous = new JSONObject(history.getString(history.length() - 1));
             history.remove(history.length() - 1);
             applyProfile(previous);
-            store.edit().putString("profile_" + gameKey(), previous.toString()).putString("history_" + gameKey(), history.toString()).apply();
+            store.edit().putString("profile_" + selectedProfileKey, previous.toString())
+                    .putString("history_" + selectedProfileKey, history.toString()).apply();
             appendOutput("Previous saved game-profile version restored. This does not revert Wine/container files.");
         } catch (JSONException e) { appendOutput("Rollback could not read the previous profile."); }
     }
 
     private void exportProfile() {
+        try { validateProfileObject(readFormProfile()); }
+        catch (Exception error) { appendOutput("Profile export blocked: " + error.getMessage()); return; }
         pendingExport = readFormProfile().toString();
         pendingExportName = gameKey() + "-wincore-profile.json";
         createExportIntent("application/json", pendingExportName, EXPORT_PROFILE);
@@ -907,7 +949,8 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType(mime);
         intent.putExtra(Intent.EXTRA_TITLE, name);
-        startActivityForResult(intent, request);
+        try { startActivityForResult(intent, request); }
+        catch (ActivityNotFoundException error) { pendingExport = null; appendOutput("No document provider is available to create the export file."); }
     }
 
     private void writeExport(Uri uri) {
@@ -965,7 +1008,10 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
             try {
                 java.lang.Process process = new ProcessBuilder("logcat", "-d", "-v", "time", "-t", "1200").redirectErrorStream(true).start();
                 byte[] raw = readBounded(process.getInputStream(), 512 * 1024);
-                process.waitFor();
+                if (!process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                    process.destroyForcibly();
+                    filtered.append("Log capture timed out after 5 seconds; partial output follows.\\n");
+                }
                 String all = new String(raw, StandardCharsets.UTF_8);
                 for (String line : all.split("\\R")) {
                     String lower = line.toLowerCase(Locale.ROOT);
@@ -989,8 +1035,10 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
     }
 
     private String redact(String line) {
-        return line.replaceAll("(?i)(/storage/emulated/0/)[^ ]+", "$1[redacted]")
-                .replaceAll("(?i)(/data/user/0/)[^ ]+", "$1[redacted]")
+        return line.replaceAll("(?i)(/storage/emulated/\\d+/)[^ ]+", "$1[redacted]")
+                .replaceAll("(?i)(/sdcard/)[^ ]+", "$1[redacted]")
+                .replaceAll("(?i)(/data/(?:user|user_de)/\\d+/)[^ ]+", "$1[redacted]")
+                .replaceAll("(?i)(/home/)[^ /]+", "$1[redacted]")
                 .replaceAll("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}", "[email redacted]");
     }
 
@@ -1176,7 +1224,7 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
         long cpu = Process.getElapsedCpuTime();
         long elapsed = Math.max(1L, now - v5CpuSampleTime);
         long cpuDelta = Math.max(0L, cpu - v5CpuSampleValue);
-        double percent = Math.min(100.0, cpuDelta * 100.0 / elapsed);
+        double percent = cpuDelta * 100.0 / elapsed;
         v5CpuSampleTime = now;
         v5CpuSampleValue = cpu;
         appendOutput(String.format(Locale.ROOT,
@@ -1675,7 +1723,8 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
                 if (++matched >= 100) break;
             }
         }
-        if (matched == 0) out.append("No obvious crash markers found in the latest captured log.");
+        if (logs.trim().isEmpty()) out.append("No log snapshot is available. Capture logs before interpreting this as a clean session.");
+        else if (matched == 0) out.append("No obvious crash markers found in the latest captured log.");
         appendOutput(out.toString());
     }
 
@@ -1888,6 +1937,9 @@ public class WinCoreCompatibilityCenterActivity extends AppCompatActivity {
 
     private void appendOutput(String message) {
         if (output == null) return;
-        output.setText(message + "\n\n" + output.getText());
+        CharSequence previous = output.getText();
+        String combined = message + "\n\n" + previous;
+        if (combined.length() > 200000) combined = combined.substring(0, 200000) + "\n[older output truncated]";
+        output.setText(combined);
     }
 }
