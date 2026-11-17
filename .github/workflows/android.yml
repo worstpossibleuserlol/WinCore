@@ -43,8 +43,20 @@ jobs:
           "$SDKMANAGER" --install \
             "platforms;android-35" \
             "build-tools;37.0.0" \
-            "ndk;24.0.8215888" \
-            "cmake;3.22.1"
+            "ndk;24.0.8215888"
+          # CMake downloads occasionally arrive truncated on hosted runners.
+          # Retry the one affected package and clear its partial extraction first.
+          for attempt in 1 2 3; do
+            if "$SDKMANAGER" --install "cmake;3.22.1"; then
+              break
+            fi
+            rm -rf "$ANDROID_HOME/cmake/3.22.1" "$ANDROID_HOME/.temp" "$HOME/.android/cache"
+            if [[ "$attempt" -eq 3 ]]; then
+              echo "CMake 3.22.1 installation failed after three attempts."
+              exit 1
+            fi
+            sleep 5
+          done
 
       - name: Apply WinCore 3.0.0 foundation with 7.0.0 version metadata
         run: bash scripts/apply-wincore-patch.sh upstream "$WINCORE_VERSION"
