@@ -242,19 +242,7 @@ public final class WinCoreMaliCompatibility {
     }
 
     public static boolean isMali(Context context) {
-        String renderer = "";
-        String vendor = "";
-        try {
-            renderer = GPUHelper.glGetRenderer(context);
-            vendor = GPUHelper.glGetVendor(context);
-        }
-        catch (RuntimeException | LinkageError error) {
-            android.util.Log.w("WinCore/Mali", "Could not read EGL GPU identity", error);
-        }
-
         StringBuilder identity = new StringBuilder();
-        append(identity, renderer);
-        append(identity, vendor);
         append(identity, Build.HARDWARE);
         append(identity, Build.BOARD);
         append(identity, Build.DEVICE);
@@ -264,13 +252,23 @@ public final class WinCoreMaliCompatibility {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) append(identity, Build.SOC_MODEL);
 
         String value = identity.toString().toLowerCase(Locale.US);
-        if (value.contains("mali")) return true;
+        if (value.contains("mali") || value.contains("dimensity 7100") ||
+            value.contains("mt6878") || value.contains("x6887")) {
+            return true;
+        }
 
-        // Device-specific fallback when EGL cannot return a renderer.
-        // Infinix Note Edge X6887 uses Dimensity 7100 / Mali-G610 MC2.
-        return value.contains("dimensity 7100") ||
-            value.contains("mt6878") ||
-            value.contains("x6887");
+        // Do a single bounded EGL probe only when the Android build identifiers
+        // do not already identify the GPU family. GPUHelper caches both fields.
+        try {
+            String renderer = GPUHelper.glGetRenderer(context);
+            String vendor = PreferenceManager.getDefaultSharedPreferences(context)
+                .getString("gpu_vendor", "");
+            return (renderer + " " + vendor).toLowerCase(Locale.US).contains("mali");
+        }
+        catch (RuntimeException | LinkageError error) {
+            android.util.Log.w("WinCore/Mali", "Could not read EGL GPU identity", error);
+            return false;
+        }
     }
 
     private static void append(StringBuilder target, String value) {
@@ -645,7 +643,7 @@ env_replacement = """            envVars.putAll(container.getEnvVars());
             if (!envVars.has("WINEESYNC")) envVars.put("WINEESYNC", "1");"""
 if env_anchor in display:
     display = display.replace(env_anchor, env_replacement, 1)
-elif "WinCoreMaliCompatibility.applyEnvironment(this, dxwrapper, envVars);" not in display:
+elif "WinCoreMaliCompatibility.applyEnvironment(this, graphicsDriver, dxwrapper, envVars);" not in display:
     raise SystemExit("XServerDisplayActivity: environment-variable insertion anchor changed")
 
 # A bounded watchdog replaces an infinite preloader if Wine never maps an X11
