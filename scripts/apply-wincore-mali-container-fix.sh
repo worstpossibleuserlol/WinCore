@@ -904,7 +904,7 @@ guest_path = required("src/main/java/com/winlator/xenvironment/components/GuestP
 guest = guest_path.read_text(encoding="utf-8")
 guest = add_import(
     guest,
-    "import com.winlator.core.GeneralComponents;\\n",
+    "import com.winlator.core.ProcessHelper;\\n",
     "import com.winlator.core.TarCompressorUtils;\\n",
     "GuestProgramLauncherComponent Box64 archive verification"
 )
