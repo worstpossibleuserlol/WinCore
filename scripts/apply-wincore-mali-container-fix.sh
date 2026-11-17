@@ -902,6 +902,12 @@ process_path.write_text(process, encoding="utf-8")
 
 guest_path = required("src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java")
 guest = guest_path.read_text(encoding="utf-8")
+guest = add_import(
+    guest,
+    "import com.winlator.core.GeneralComponents;\\n",
+    "import com.winlator.core.TarCompressorUtils;\\n",
+    "GuestProgramLauncherComponent Box64 archive verification"
+)
 
 # Repair the silent Box64 extraction state bug. The upstream code used to write
 # current_box64_version even when the archive failed to extract, which caused
@@ -920,67 +926,77 @@ old_box64_extract = """    private void extractBox64File() {
 new_box64_extract = """    private void extractBox64File() {
         Context context = environment.getContext();
         RootFS rootFS = environment.getRootFS();
-        File box64File = new File(rootFS.getRootDir(), "usr/local/bin/box64");
+        File rootDir = rootFS.getRootDir();
+        File box64File = new File(rootDir, "usr/local/bin/box64");
         File box64Directory = box64File.getParentFile();
         if (box64Directory == null || (!box64Directory.isDirectory() && !box64Directory.mkdirs())) {
-            throw new IllegalStateException(
-                "Could not prepare the RootFS Box64 directory: " +
-                    (box64Directory != null ? box64Directory.getAbsolutePath() : "<null>")
-            );
+            throw new IllegalStateException("Could not prepare the Box64 directory: " +
+                (box64Directory != null ? box64Directory.getAbsolutePath() : "<null>"));
         }
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        String box64Version = preferences.getString("box64_version", DefaultVersion.BOX64);
-        String currentBox64Version = preferences.getString("current_box64_version", "");
+        String requestedVersion = preferences.getString("box64_version", DefaultVersion.BOX64);
+        String installedVersion = preferences.getString("current_box64_version", "");
+        boolean ready = isBox64RuntimeReady(box64File);
 
-        // Never trust the version preference by itself. It may have been saved
-        // by an earlier launch even though the archive extraction failed.
-        if (!isBox64RuntimeReady(box64File) || !box64Version.equals(currentBox64Version)) {
-            android.util.Log.i(
-                "WinCore/Box64",
-                "Extracting Box64 " + box64Version + " because the runtime is missing or changed"
-            );
-            GeneralComponents.extractFile(
-                GeneralComponents.Type.BOX64, context, box64Version, DefaultVersion.BOX64
-            );
+        if (!ready || !requestedVersion.equals(installedVersion)) {
+            if (box64File.exists() && !box64File.delete()) {
+                android.util.Log.w("WinCore/Box64", "Could not remove stale Box64 executable before extraction");
+            }
+            boolean extracted = extractBox64Archive(context, rootDir, requestedVersion);
+            ready = extracted && isBox64RuntimeReady(box64File);
+            android.util.Log.i("WinCore/Box64", "Requested Box64 " + requestedVersion +
+                " extraction=" + extracted + ", executableReady=" + ready);
         }
 
-        // Retry the packaged, known-good component once if a custom component
-        // or an earlier partial extraction did not produce a usable executable.
-        if (!isBox64RuntimeReady(box64File)) {
-            android.util.Log.w(
-                "WinCore/Box64",
-                "Selected Box64 archive did not produce an executable; retrying packaged Box64 " +
-                    DefaultVersion.BOX64
-            );
-            GeneralComponents.extractFile(
-                GeneralComponents.Type.BOX64, context, DefaultVersion.BOX64, DefaultVersion.BOX64
-            );
+        String actualVersion = requestedVersion;
+        if (!ready) {
+            android.util.Log.w("WinCore/Box64", "Requested Box64 archive failed; retrying packaged " +
+                DefaultVersion.BOX64);
+            if (box64File.exists()) box64File.delete();
+            boolean fallbackExtracted = extractBox64Archive(context, rootDir, DefaultVersion.BOX64);
+            ready = fallbackExtracted && isBox64RuntimeReady(box64File);
+            actualVersion = DefaultVersion.BOX64;
+            android.util.Log.i("WinCore/Box64", "Fallback Box64 extraction=" + fallbackExtracted +
+                ", executableReady=" + ready);
         }
 
-        if (!isBox64RuntimeReady(box64File)) {
+        if (!ready) {
             throw new IllegalStateException(
-                "Box64 runtime was not extracted successfully. Expected a readable executable at " +
-                    box64File.getAbsolutePath() +
-                    ". The packaged Box64 archive may be missing, damaged, or unable to extract. " +
-                    "Your containers have not been deleted."
+                "Box64 could not be installed. Expected " + box64File.getAbsolutePath() +
+                "; requested archive=" + requestedVersion + "; packaged fallback=" +
+                DefaultVersion.BOX64 + ". Check that the APK contains box64/box64-" +
+                DefaultVersion.BOX64 + ".tzst and that RootFS storage is writable. " +
+                "Your containers have not been deleted."
             );
         }
 
         FileUtils.chmod(box64File, 0771);
         if (!box64File.canExecute()) {
-            throw new IllegalStateException(
-                "Box64 exists but is not executable: " + box64File.getAbsolutePath()
-            );
+            throw new IllegalStateException("Box64 was extracted but is not executable: " +
+                box64File.getAbsolutePath() + " (length=" + box64File.length() + ")");
         }
 
-        // Save the version only after the real executable has been verified.
-        preferences.edit().putString("current_box64_version", box64Version).apply();
-        android.util.Log.i(
-            "WinCore/Box64",
-            "Verified Box64 executable: " + box64File.getAbsolutePath() +
-                " (" + box64File.length() + " bytes)"
+        preferences.edit()
+            .putString("box64_version", actualVersion)
+            .putString("current_box64_version", actualVersion)
+            .apply();
+        android.util.Log.i("WinCore/Box64", "Verified Box64 " + actualVersion +
+            " at " + box64File.getAbsolutePath() + " (" + box64File.length() + " bytes)");
+    }
+
+    private boolean extractBox64Archive(Context context, File rootDir, String version) {
+        if (GeneralComponents.isBuiltinComponent(GeneralComponents.Type.BOX64, version)) {
+            return TarCompressorUtils.extract(
+                TarCompressorUtils.Type.ZSTD, context,
+                "box64/box64-" + version + ".tzst", rootDir
+            );
+        }
+        File archive = new File(
+            GeneralComponents.getComponentDir(GeneralComponents.Type.BOX64, context),
+            "box64-" + version + ".tzst"
         );
+        return TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, archive, rootDir);
     }
 
     private boolean isBox64RuntimeReady(File box64File) {
@@ -1140,7 +1156,9 @@ checks = {
         "ProcessHelper.startProcess(command, envVars, rootDir)",
         "WinCore-Guest-Process-Waiter",
         "guestProcess.destroyForcibly()",
-        "Box64 runtime was not extracted successfully",
+        "Box64 could not be installed",
+        "extractBox64Archive(context, rootDir, requestedVersion)",
+        "TarCompressorUtils.Type.ZSTD",
         "isBox64RuntimeReady(box64File)",
         "FileUtils.chmod(box64File, 0771)",
         "preferences.edit().putString(\"current_box64_version\", box64Version).apply()"
