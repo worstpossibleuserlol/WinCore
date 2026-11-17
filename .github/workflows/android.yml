@@ -289,7 +289,7 @@ jobs:
           set -euxo pipefail
           BOX64_ARCHIVE="upstream/app/app/src/main/assets/box64/box64-0.4.4.tzst"
           BOX64_TMP="$(mktemp)"
-          tar --zstd -xOf "$BOX64_ARCHIVE" usr/local/bin/box64 > "$BOX64_TMP"
+          tar --zstd -xOf "$BOX64_ARCHIVE" ./usr/local/bin/box64 > "$BOX64_TMP"
           test -s "$BOX64_TMP"
           file "$BOX64_TMP"
           readelf -h "$BOX64_TMP" | grep -E 'Class:|Data:|Machine:'
