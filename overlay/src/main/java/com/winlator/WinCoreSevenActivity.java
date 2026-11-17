@@ -1055,6 +1055,11 @@ public final class WinCoreSevenActivity extends Activity {
         if (record == null) { setStatus("select a container first."); return; }
         StringBuilder out = new StringBuilder("PRE-LAUNCH INSPECTION\n");
         out.append("configuration: ").append(record.config.isFile() ? "present" : "missing").append("\n");
+        File localBox64 = new File(rootFS.getRootDir(), "usr/local/bin/box64");
+        File legacyBox64 = new File(rootFS.getRootDir(), "usr/bin/box64");
+        File box64Runtime = localBox64.isFile() ? localBox64 : (legacyBox64.isFile() ? legacyBox64 : null);
+        out.append("Box64 runtime: ").append(box64Runtime == null ? "missing" :
+            box64Runtime.getAbsolutePath() + (box64Runtime.canExecute() ? " (executable)" : " (not executable)")).append("\n");
         out.append("root filesystem: ").append(rootFS.isValid() ? "valid marker found" : "not validated").append("\n");
         out.append("Wine prefix: ").append(new File(record.dir, ".wine").isDirectory() ? "present" : "missing").append("\n");
         out.append("Windows system32: ").append(new File(record.dir, ".wine/drive_c/windows/system32").isDirectory() ? "present" : "missing").append("\n");
@@ -1068,7 +1073,7 @@ public final class WinCoreSevenActivity extends Activity {
     private void missingRuntimeReport() {
         File base = rootFS.getRootDir();
         StringBuilder out = new StringBuilder("MISSING RUNTIME DETECTOR\n");
-        String[] paths = {"opt/wine/bin/wine", "usr/bin/box64", "usr/bin/box86", "usr/lib"};
+        String[] paths = {"opt/wine/bin/wine", "usr/local/bin/box64", "usr/bin/box64", "usr/bin/box86", "usr/lib"};
         for (String path : paths) {
             File file = new File(base, path);
             out.append(path).append(": ").append(file.exists() ? "found" : "not found").append("\n");
