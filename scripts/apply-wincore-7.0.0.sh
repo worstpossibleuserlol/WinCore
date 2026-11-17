@@ -200,6 +200,20 @@ start_anchor = "        ForegroundService.startSession(this);"
 replace_once(xserver, start_anchor,
     start_anchor + "\n        WinCoreSessionTracker.onSessionStart(this);",
     "XServer session start tracking")
+
+# Track explicit user exits and whether the first guest window ever appeared.
+replace_once(
+    xserver,
+    "    private String screenEffectProfile;\n",
+    "    private String screenEffectProfile;\n    private boolean wincoreIntentionalExit = false;\n    private boolean wincoreFirstWindowShown = false;\n",
+    "XServer guest-exit diagnostics fields"
+)
+replace_once(
+    xserver,
+    "    private void exit() {\n        winHandler.stop();",
+    "    private void exit() {\n        wincoreIntentionalExit = true;\n        winHandler.stop();",
+    "XServer intentional exit tracking"
+)
 end_anchor = """    @Override
     protected void onDestroy() {
         winHandler.stop();
