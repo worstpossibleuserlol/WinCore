@@ -16,7 +16,7 @@ jobs:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       WINCORE_VERSION: 7.0.0
-      WINCORE_VERSION_CODE: 70002
+      WINCORE_VERSION_CODE: 70003
     steps:
       - name: Checkout WinCore and upstream submodules
         uses: actions/checkout@v4
