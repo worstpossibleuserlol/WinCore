@@ -928,12 +928,6 @@ process_path.write_text(process, encoding="utf-8")
 
 guest_path = required("src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java")
 guest = guest_path.read_text(encoding="utf-8")
-guest = add_import(
-    guest,
-    "import com.winlator.core.ProcessHelper;\\n",
-    "import com.winlator.core.TarCompressorUtils;\\n",
-    "GuestProgramLauncherComponent Box64 archive verification"
-)
 
 # Repair the silent Box64 extraction state bug. The upstream code used to write
 # current_box64_version even when the archive failed to extract, which caused
