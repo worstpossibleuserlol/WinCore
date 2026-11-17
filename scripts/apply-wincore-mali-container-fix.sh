@@ -1189,6 +1189,8 @@ new_box64_extract = """    private void extractBox64File() {
                 android.util.Log.e("WinCore/Box64", "WinCore interpreter path is too long for the bundled ELF field");
                 return false;
             }
+            byte[] paddedNewBytes = new byte[oldBytes.length];
+            System.arraycopy(newBytes, 0, paddedNewBytes, 0, newBytes.length);
 
             try (RandomAccessFile file = new RandomAccessFile(executable, "rw")) {
                 if (file.length() > Integer.MAX_VALUE) return false;
@@ -1205,7 +1207,7 @@ new_box64_extract = """    private void extractBox64File() {
                     boolean newMatch = true;
                     for (int j = 0; j < oldBytes.length; j++) {
                         if (image[i + j] != oldBytes[j]) oldMatch = false;
-                        if (image[i + j] != newBytes[j]) newMatch = false;
+                        if (image[i + j] != paddedNewBytes[j]) newMatch = false;
                         if (!oldMatch && !newMatch) break;
                     }
                     if (oldMatch) { oldOffset = i; oldMatches++; }
@@ -1218,10 +1220,8 @@ new_box64_extract = """    private void extractBox64File() {
                     return false;
                 }
 
-                byte[] replacement = new byte[oldBytes.length];
-                System.arraycopy(newBytes, 0, replacement, 0, newBytes.length);
                 file.seek(oldOffset);
-                file.write(replacement);
+                file.write(paddedNewBytes);
                 file.getFD().sync();
 
                 android.util.Log.i(
