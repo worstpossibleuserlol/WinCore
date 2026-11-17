@@ -976,6 +976,12 @@ guest = guest_path.read_text(encoding="utf-8")
 # every later launch to skip recovery while the executable was still missing.
 old_box64_extract = """    private void extractBox64File() {
         Context context = environment.getContext();
+        // Some bundled Box64 archives place the executable in usr/bin instead
+        // of usr/local/bin. Normalize that layout before and after extraction.
+        if (!isBox64RuntimeReady(box64File) && isBox64RuntimeReady(alternateBox64File)) {
+            copyBox64Executable(alternateBox64File, box64File);
+        }
+
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
         String box64Version = preferences.getString("box64_version", DefaultVersion.BOX64);
         String currentBox64Version = preferences.getString("current_box64_version", "");
@@ -990,6 +996,7 @@ new_box64_extract = """    private void extractBox64File() {
         RootFS rootFS = environment.getRootFS();
         File rootDir = rootFS.getRootDir();
         File box64File = new File(rootDir, "usr/local/bin/box64");
+        File alternateBox64File = new File(rootDir, "usr/bin/box64");
         File box64Directory = box64File.getParentFile();
         if (box64Directory == null || (!box64Directory.isDirectory() && !box64Directory.mkdirs())) {
             throw new IllegalStateException(
@@ -1048,6 +1055,10 @@ new_box64_extract = """    private void extractBox64File() {
             }
         }
 
+        if (!isBox64RuntimeReady(box64File) && isBox64RuntimeReady(alternateBox64File)) {
+            copyBox64Executable(alternateBox64File, box64File);
+        }
+
         if (!isBox64RuntimeReady(box64File)) {
             throw new IllegalStateException(
                 "Box64 is missing or invalid after recovery. Expected an ARM64 ELF executable at " +
@@ -1076,6 +1087,23 @@ new_box64_extract = """    private void extractBox64File() {
             "Verified Box64 ARM64 executable: " + box64File.getAbsolutePath() +
                 " (" + box64File.length() + " bytes, executable=" + box64File.canExecute() + ")"
         );
+    }
+
+    private void copyBox64Executable(File source, File destination) {
+        if (source == null || destination == null) return;
+        try (FileInputStream input = new FileInputStream(source);
+             FileOutputStream output = new FileOutputStream(destination, false)) {
+            byte[] buffer = new byte[65536];
+            int count;
+            while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+            output.getFD().sync();
+            FileUtils.chmod(destination, 0771);
+            android.util.Log.i("WinCore/Box64", "Normalized Box64 executable from " +
+                source.getAbsolutePath() + " to " + destination.getAbsolutePath());
+        }
+        catch (IOException error) {
+            android.util.Log.e("WinCore/Box64", "Could not normalize alternate Box64 path", error);
+        }
     }
 
     private boolean isBox64RuntimeReady(File box64File) {
@@ -1111,7 +1139,7 @@ guest = guest.replace(
 )
 guest = guest.replace(
     "import java.io.File;\n",
-    "import java.io.File;\nimport java.io.FileInputStream;\nimport java.io.IOException;\n"
+    "import java.io.File;\nimport java.io.FileInputStream;\nimport java.io.FileOutputStream;\nimport java.io.IOException;\n"
 )
 guest = guest.replace("    private static int pid = -1;\n", "    private static java.lang.Process guestProcess;\n")
 old_start = """    @Override
