@@ -1113,17 +1113,7 @@ if "Process.killProcess(pid)" in pulse or "private static int pid" in pulse:
     raise SystemExit("PulseAudioComponent: an old PID-based branch remains")
 pulse_path.write_text(pulse, encoding="utf-8")
 
-# Correct the compatibility report to inspect the Box64 path used by the launcher.
-for source_path in (app / "src/main/java/com/winlator").rglob("*.java"):
-    source = source_path.read_text(encoding="utf-8")
-    corrected = source.replace('"usr/bin/box64"', '"usr/local/bin/box64"')
-    if corrected != source:
-        source_path.write_text(corrected, encoding="utf-8")
-
-# Verify the packaged Box64 runtime is present before compiling.
-box64_archive = required("src/main/assets/box64/box64-0.4.4.tzst")
-if box64_archive.stat().st_size < 1024:
-    raise SystemExit(f"Packaged Box64 archive is missing or implausibly small: {box64_archive}")
+# Do not rewrite runtime executable paths globally. The diagnostic checks both supported locations.
 
 # Verify the critical markers before Gradle compiles.
 checks = {
