@@ -1245,6 +1245,33 @@ elif "guestProcess.destroyForcibly()" not in guest:
     raise SystemExit("GuestProgramLauncherComponent: stop method anchor changed")
 
 guest = guest.replace("    private int execGuestProgram() {", "    private java.lang.Process execGuestProgram() {", 1)
+old_box64_command = '        String command = rootDir+"/usr/local/bin/box64 "+guestExecutable;'
+new_box64_command = """        File box64Executable = new File(rootDir, "usr/local/bin/box64");
+        if (!isBox64RuntimeReady(box64Executable)) {
+            File alternateBox64Executable = new File(rootDir, "usr/bin/box64");
+            if (isBox64RuntimeReady(alternateBox64Executable)) {
+                copyBox64Executable(alternateBox64Executable, box64Executable);
+            }
+        }
+        if (!isBox64RuntimeReady(box64Executable)) {
+            throw new IllegalStateException(
+                "Box64 executable is missing or invalid immediately before launch. " +
+                    "Expected usr/local/bin/box64; recovery also checked usr/bin/box64. " +
+                    "The selected container was not started."
+            );
+        }
+        FileUtils.chmod(box64Executable, 0771);
+        if (!box64Executable.canExecute()) {
+            throw new IllegalStateException(
+                "Box64 is present but cannot execute: " + box64Executable.getAbsolutePath()
+            );
+        }
+        String command = box64Executable.getAbsolutePath()+" "+guestExecutable;"""
+if old_box64_command in guest:
+    guest = guest.replace(old_box64_command, new_box64_command, 1)
+elif 'String command = box64Executable.getAbsolutePath()+" "+guestExecutable;' not in guest:
+    raise SystemExit("GuestProgramLauncherComponent: Box64 command anchor changed")
+
 old_guest_exec = """        return ProcessHelper.exec(command, envVars, rootDir, (status) -> {
             synchronized (lock) {
                 pid = -1;

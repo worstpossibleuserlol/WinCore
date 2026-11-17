@@ -40,7 +40,7 @@ fi
 python3 - "$ICON" "$APP_MODULE" <<'PY'
 from pathlib import Path
 import sys
-from PIL import Image
+from PIL import Image, ImageChops
 
 source = Path(sys.argv[1])
 app = Path(sys.argv[2])
@@ -53,6 +53,23 @@ except Exception as error:
 
 if image.width != image.height:
     raise SystemExit(f"Launcher icon must be square; got {image.width}x{image.height}")
+
+# Trim only the blank white canvas around the supplied mark. The actual logo,
+# its green facets, and its white interior remain untouched.
+difference = ImageChops.difference(
+    image.convert("RGB"),
+    Image.new("RGB", image.size, (255, 255, 255))
+).convert("L")
+mask = difference.point(lambda value: 255 if value > 24 else 0)
+bounds = mask.getbbox()
+if bounds:
+    artwork = image.crop(bounds)
+    side = max(artwork.width, artwork.height)
+    padding = max(1, round(side * 0.02))
+    square = Image.new("RGBA", (side + padding * 2, side + padding * 2), (255, 255, 255, 255))
+    offset = ((square.width - artwork.width) // 2, (square.height - artwork.height) // 2)
+    square.alpha_composite(artwork, offset)
+    image = square
 
 # Re-encode once to remove malformed/unsupported ancillary metadata, then
 # render density assets with Pillow rather than ImageMagick.
