@@ -655,12 +655,50 @@ display_source = display_source.replace(
     1
 )
 old_startup = """        Executors.newSingleThreadExecutor().execute(() -> {
-            if (!isGenerateWineprefix()) {
-                setupWineSystemFiles();
-                extractGraphicsDriverFiles();
-                changeWineAudioDriver();
+            try {
+                if (!isGenerateWineprefix()) {
+                    setupWineSystemFiles();
+                    extractGraphicsDriverFiles();
+                    changeWineAudioDriver();
+                }
+                setupXEnvironment();
             }
-            setupXEnvironment();
+            catch (Exception error) {
+                android.util.Log.e("WinCore", "Container startup failed", error);
+                runOnUiThread(() -> {
+                    preloaderDialog.close();
+                    StringBuilder detail = new StringBuilder("WinCore could not start the selected container.");
+                    Throwable cause = error;
+                    int depth = 0;
+                    while (cause != null && depth < 6) {
+                        detail.append(depth == 0 ? "\n\n" : "\nCaused by: ");
+                        detail.append(cause.getClass().getSimpleName());
+                        String message = cause.getMessage();
+                        if (message != null && !message.trim().isEmpty()) {
+                            detail.append(": ").append(message.trim());
+                        }
+                        cause = cause.getCause();
+                        depth++;
+                    }
+                    final String report = detail.toString();
+                    new android.app.AlertDialog.Builder(this)
+                        .setTitle("Container failed to start")
+                        .setMessage(report)
+                        .setPositiveButton("Return to WinCore", (dialog, which) -> finish())
+                        .setNeutralButton("Copy details", (dialog, which) -> {
+                            android.content.ClipboardManager clipboard =
+                                (android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+                            if (clipboard != null) {
+                                clipboard.setPrimaryClip(
+                                    android.content.ClipData.newPlainText("WinCore startup error", report)
+                                );
+                                Toast.makeText(this, "Startup details copied", Toast.LENGTH_SHORT).show();
+                            }
+                        })
+                        .setCancelable(false)
+                        .show();
+                });
+            }
         });"""
 new_startup = """        Executors.newSingleThreadExecutor().execute(() -> {
             try {
