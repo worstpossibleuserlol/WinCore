@@ -97,6 +97,9 @@ jobs:
       - name: Apply WinCore 7.0.0 features, container fixes, About fixes, and user-supplied drawer branding
         run: bash scripts/apply-wincore-7.0.0.sh
 
+      - name: Apply WinCore 7.0.0 features, container fixes, About fixes, and user-supplied drawer branding
+        run: bash scripts/apply-wincore-7.0.0.sh
+
       - name: Apply Mali compatibility and container reliability fixes (WinCore 7.0.0)
         run: bash scripts/apply-wincore-mali-container-fix.sh upstream
 
