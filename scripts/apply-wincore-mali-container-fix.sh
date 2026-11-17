@@ -693,11 +693,53 @@ if flags_anchor in display:
 elif "startupTimeout = () ->" not in display:
     raise SystemExit("XServerDisplayActivity: startup flags anchor changed")
 
+
+exit_callback_anchor = "        guestProgramLauncherComponent.setTerminationCallback((status) -> exit());"
+exit_callback_replacement = """        guestProgramLauncherComponent.setTerminationCallback((status) -> {
+            runOnUiThread(() -> {
+                if (wincoreIntentionalExit || isFinishing() || isDestroyed()) return;
+                if (status != 0 && !wincoreFirstWindowShown) {
+                    android.util.Log.e(
+                        "WinCore/GuestExit",
+                        "Box64/Wine exited before the first Windows window. Exit code: " + status
+                    );
+                    String report = "Box64 / Wine stopped before opening a Windows window.\\n\\n" +
+                        "Exit code: " + status + "\\n\\n" +
+                        "The process output is recorded under the WinCore/ProcessOutput log tag. " +
+                        "Open WinCore 7.0.0 Workspace → Session Logs to inspect the captured output.";
+                    new android.app.AlertDialog.Builder(this)
+                        .setTitle("Box64 / Wine failed to start")
+                        .setMessage(report)
+                        .setPositiveButton("Return to WinCore", (dialog, which) -> exit())
+                        .setNeutralButton("Copy details", (dialog, which) -> {
+                            android.content.ClipboardManager clipboard =
+                                (android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+                            if (clipboard != null) {
+                                clipboard.setPrimaryClip(
+                                    android.content.ClipData.newPlainText("WinCore guest startup failure", report)
+                                );
+                                Toast.makeText(this, "Failure details copied", Toast.LENGTH_SHORT).show();
+                            }
+                        })
+                        .setCancelable(false)
+                        .show();
+                }
+                else {
+                    exit();
+                }
+            });
+        });"""
+if exit_callback_anchor in display:
+    display = display.replace(exit_callback_anchor, exit_callback_replacement, 1)
+elif "WinCore/GuestExit" not in display:
+    raise SystemExit("XServerDisplayActivity guest termination callback anchor changed")
+
 map_anchor = """                    preloaderDialog.closeOnUiThread();
                     flags[0] = true;"""
 map_replacement = """                    preloaderDialog.closeOnUiThread();
                     startupHandler.removeCallbacks(startupTimeout);
-                    flags[0] = true;"""
+                    flags[0] = true;
+                    wincoreFirstWindowShown = true;"""
 if map_anchor in display:
     display = display.replace(map_anchor, map_replacement, 1)
 elif "startupHandler.removeCallbacks(startupTimeout);" not in display:
