@@ -20,6 +20,7 @@ python3 - "$APP_MODULE" "$VERSION" <<'PY'
 from pathlib import Path
 import re
 import sys
+import os
 
 app = Path(sys.argv[1])
 version = sys.argv[2]
@@ -28,9 +29,14 @@ if not re.fullmatch(r"\d+\.\d+\.\d+", version):
     raise SystemExit(f"Invalid semantic version: {version}")
 
 major, minor, patch = (int(part) for part in version.split("."))
-version_code = major * 10000 + minor * 100 + patch
-if version_code < 1:
-    raise SystemExit("The Android version code must be positive.")
+computed_version_code = major * 10000 + minor * 100 + patch
+override_version_code = os.environ.get("WINCORE_VERSION_CODE", "").strip()
+try:
+    version_code = int(override_version_code) if override_version_code else computed_version_code
+except ValueError:
+    raise SystemExit(f"Invalid WINCORE_VERSION_CODE: {override_version_code!r}")
+if version_code < computed_version_code:
+    raise SystemExit("WINCORE_VERSION_CODE must not be lower than the semantic-version code.")
 
 def replace_regex_once(relative_path: str, pattern: str, replacement: str) -> None:
     path = app / relative_path
