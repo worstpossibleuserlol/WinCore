@@ -1035,7 +1035,7 @@ checks = {
     "src/main/java/com/winlator/WinCoreMaliCompatibility.java": [
         "public static boolean isMali(Context context)",
         "DXWrappers.WINED3D",
-        'config[0].put("renderer", "vulkan")',
+        'config[0].put("renderer", renderer)',
         "MESA_GL_VERSION_OVERRIDE"
     ],
     "src/main/java/com/winlator/container/ContainerManager.java": [
