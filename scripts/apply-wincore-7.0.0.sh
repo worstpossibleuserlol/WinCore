@@ -708,9 +708,16 @@ new_startup = """        Executors.newSingleThreadExecutor().execute(() -> {
                 });
             }
         });"""
-if display_source.count(old_startup) != 1:
-    raise SystemExit("XServerDisplayActivity startup worker anchor changed.")
-display_source = display_source.replace(old_startup, new_startup, 1)
+if display_source.count(old_startup) == 1:
+    display_source = display_source.replace(old_startup, new_startup, 1)
+elif "Container startup failed" in display_source:
+    print("XServerDisplayActivity startup diagnostics already present; skipping duplicate patch.")
+elif "setupXEnvironment();" in display_source and "Executors.newSingleThreadExecutor().execute" in display_source:
+    # Upstream may reformat the worker between pinned revisions. Do not abort
+    # the entire APK build over a diagnostic-only wrapper; preserve launch code.
+    print("XServerDisplayActivity startup worker formatting changed; preserving upstream worker.")
+else:
+    raise SystemExit("XServerDisplayActivity startup worker is missing; cannot safely patch startup diagnostics.")
 display.write_text(display_source, encoding="utf-8")
 
 containers = app / "src/main/java/com/winlator/ContainersFragment.java"
