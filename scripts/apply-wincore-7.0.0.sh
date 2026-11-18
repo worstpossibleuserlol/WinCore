@@ -243,8 +243,7 @@ if "case R.id.menu_item_wincore_workspace" not in main_source:
 # Settings entries remain available, but the primary entry must not be hidden.
 main_layout = app / "src/main/res/layout/main_activity.xml"
 layout_source = main_layout.read_text(encoding="utf-8")
-frame_anchor = """        <FrameLayout
-            android:id="@+id/FLFragmentContainer""""
+frame_anchor = '        <FrameLayout\n            android:id="@+id/FLFragmentContainer"'
 workspace_button = """        <Button
             android:id="@+id/BTWinCoreWorkspaceHome"
             android:layout_width="match_parent"
