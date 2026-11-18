@@ -706,11 +706,16 @@ exit_callback_replacement = """        guestProgramLauncherComponent.setTerminat
                     String report = "Box64 / Wine stopped before opening a Windows window.\\n\\n" +
                         "Exit code: " + status + "\\n\\n" +
                         "The process output is recorded under the WinCore/ProcessOutput log tag. " +
-                        "Open WinCore 7.0.0 Workspace → Session Logs to inspect the captured output.";
+                        "Tap Session Logs below to inspect the captured output.";
                     new android.app.AlertDialog.Builder(this)
                         .setTitle("Box64 / Wine failed to start")
                         .setMessage(report)
                         .setPositiveButton("Return to WinCore", (dialog, which) -> exit())
+                        .setNegativeButton("Session Logs", (dialog, which) -> {
+                            Intent workspaceIntent = new Intent(this, WinCoreSevenActivity.class);
+                            workspaceIntent.putExtra("open_session_logs", true);
+                            startActivity(workspaceIntent);
+                        })
                         .setNeutralButton("Copy details", (dialog, which) -> {
                             android.content.ClipboardManager clipboard =
                                 (android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
