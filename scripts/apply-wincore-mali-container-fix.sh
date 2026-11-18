@@ -962,6 +962,9 @@ start_process_method = r'''    private static final Object PROCESS_OUTPUT_LOCK =
             appendProcessOutput(processLog, "BOX64_LD_LIBRARY_PATH=" + environment.get("BOX64_LD_LIBRARY_PATH"));
             appendProcessOutput(processLog, "WINEDEBUG=" + environment.get("WINEDEBUG"));
             appendProcessOutput(processLog, "BOX64_LOG=" + environment.get("BOX64_LOG"));
+            appendProcessOutput(processLog, "BOX64_DYNAREC=" + environment.get("BOX64_DYNAREC"));
+            appendProcessOutput(processLog, "WINEESYNC=" + environment.get("WINEESYNC"));
+            appendProcessOutput(processLog, "WINEFSYNC=" + environment.get("WINEFSYNC"));
 
             process = processBuilder.start();
             final java.lang.Process capturedProcess = process;
@@ -1467,7 +1470,50 @@ elif "guestProcess.destroyForcibly()" not in guest:
 
 guest = guest.replace("    private int execGuestProgram() {", "    private java.lang.Process execGuestProgram() {", 1)
 old_box64_command = '        String command = rootDir+"/usr/local/bin/box64 "+guestExecutable;'
-new_box64_command = """        File box64Executable = new File(rootDir, "usr/local/bin/box64");
+new_box64_command = """        SharedPreferences workspaceSettings = environment.getContext().getSharedPreferences(
+            "wincore_7_workspace", Context.MODE_PRIVATE
+        );
+        if (workspaceSettings.getBoolean("runtime_conservative_box64", false)) {
+            envVars.put("BOX64_DYNAREC", "0");
+            envVars.put("BOX64_DYNACACHE", "0");
+            android.util.Log.i("WinCore/Startup", "Workspace safe-launch option: Box64 dynarec disabled");
+        }
+        if (workspaceSettings.getBoolean("runtime_disable_wine_sync", false)) {
+            envVars.put("WINEESYNC", "0");
+            envVars.put("WINEFSYNC", "0");
+            android.util.Log.i("WinCore/Startup", "Workspace safe-launch option: Wine esync/fsync disabled");
+        }
+        if (workspaceSettings.getBoolean("runtime_verbose_logs", false)) {
+            envVars.put("BOX64_NOBANNER", "0");
+            envVars.put("BOX64_LOG", "1");
+            envVars.put("BOX64_DYNAREC_MISSING", "1");
+            envVars.put("BOX64_SHOWSEGV", "1");
+            envVars.put("BOX64_DLSYM_ERROR", "1");
+            envVars.put("WINEDEBUG", "+err,+warn");
+            android.util.Log.i("WinCore/Startup", "Workspace verbose Box64/Wine logging enabled");
+        }
+
+        String wineSearchPath = envVars.get("PATH");
+        File wineExecutable = null;
+        if (!wineSearchPath.isEmpty()) {
+            for (String directory : wineSearchPath.split(File.pathSeparator)) {
+                if (directory == null || directory.isEmpty()) continue;
+                File candidate = new File(directory, "wine");
+                if (candidate.isFile() && candidate.canRead() && candidate.canExecute()) {
+                    wineExecutable = candidate;
+                    break;
+                }
+            }
+        }
+        if (wineExecutable == null) {
+            throw new IllegalStateException(
+                "Could not resolve Wine executable from PATH. Check the selected Wine version, " +
+                    "its bin directory, and the container's PATH environment variable."
+            );
+        }
+        android.util.Log.i("WinCore/Startup", "Wine runtime preflight passed: " + wineExecutable.getAbsolutePath());
+
+        File box64Executable = new File(rootDir, "usr/local/bin/box64");
         if (!isBox64RuntimeReady(box64Executable)) {
             File alternateBox64Executable = new File(rootDir, "usr/bin/box64");
             if (isBox64RuntimeReady(alternateBox64Executable)) {
@@ -1624,6 +1670,10 @@ checks = {
         "private boolean repairBox64Interpreter(File executable, File rootDir, Context context)",
         "ELF interpreter was rewritten for WinCore",
         "FileUtils.chmod(box64File, 0771)",
+        "runtime_conservative_box64",
+        "runtime_disable_wine_sync",
+        "runtime_verbose_logs",
+        "Could not resolve Wine executable from PATH",
         "preferences.edit().putString(\"current_box64_version\", box64Version).apply()"
     ],
     "src/main/java/com/winlator/core/ProcessHelper.java": [
@@ -1635,7 +1685,10 @@ checks = {
         "processBuilder.redirectErrorStream(true)",
         "WinCoreCommandLineParser.split(command)",
         "PROCESS_START argv=",
-        "PROCESS_EXIT code="
+        "PROCESS_EXIT code=",
+        "BOX64_DYNAREC=",
+        "WINEESYNC=",
+        "WINEFSYNC="
     ],
     "src/main/java/com/winlator/core/WinCoreCommandLineParser.java": [
         "public static String[] split(String command)",

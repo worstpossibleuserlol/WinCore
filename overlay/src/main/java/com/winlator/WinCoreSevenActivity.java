@@ -21,6 +21,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityEvent;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -206,6 +207,10 @@ public final class WinCoreSevenActivity extends Activity {
         selectionRow.addView(sessionLogs, new LinearLayout.LayoutParams(0, dp(48), 1));
         column.addView(selectionRow, matchWrap());
 
+        Button runtimeSettings = makeButton("Runtime Settings");
+        runtimeSettings.setOnClickListener(v -> showRuntimeSettings());
+        column.addView(runtimeSettings, matchWrap());
+
         containerSearch = new EditText(this);
         containerSearch.setSingleLine(true);
         containerSearch.setHint("search features or containers");
@@ -263,6 +268,49 @@ public final class WinCoreSevenActivity extends Activity {
         button.setFocusableInTouchMode(true);
         button.setContentDescription(label);
         return button;
+    }
+
+    private void showRuntimeSettings() {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(16), dp(4), dp(16), dp(4));
+
+        TextView note = new TextView(this);
+        note.setText("These options apply the next time you launch a container. Defaults stay unchanged unless you enable an option.");
+        note.setTextSize(TypedValue.COMPLEX_UNIT_SP, largeText ? 16 : 14);
+        panel.addView(note, matchWrap());
+
+        CheckBox conservativeBox64 = new CheckBox(this);
+        conservativeBox64.setText("Conservative Box64 mode (disable dynarec; can be much slower)");
+        conservativeBox64.setTextSize(TypedValue.COMPLEX_UNIT_SP, largeText ? 16 : 14);
+        conservativeBox64.setChecked(preferences.getBoolean("runtime_conservative_box64", false));
+        panel.addView(conservativeBox64, matchWrap());
+
+        CheckBox disableWineSync = new CheckBox(this);
+        disableWineSync.setText("Disable Wine esync/fsync");
+        disableWineSync.setTextSize(TypedValue.COMPLEX_UNIT_SP, largeText ? 16 : 14);
+        disableWineSync.setChecked(preferences.getBoolean("runtime_disable_wine_sync", false));
+        panel.addView(disableWineSync, matchWrap());
+
+        CheckBox verboseLogs = new CheckBox(this);
+        verboseLogs.setText("Verbose Box64/Wine startup logs");
+        verboseLogs.setTextSize(TypedValue.COMPLEX_UNIT_SP, largeText ? 16 : 14);
+        verboseLogs.setChecked(preferences.getBoolean("runtime_verbose_logs", false));
+        panel.addView(verboseLogs, matchWrap());
+
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("Runtime Settings")
+            .setView(panel)
+            .setPositiveButton("Save", (dialog, which) -> {
+                preferences.edit()
+                    .putBoolean("runtime_conservative_box64", conservativeBox64.isChecked())
+                    .putBoolean("runtime_disable_wine_sync", disableWineSync.isChecked())
+                    .putBoolean("runtime_verbose_logs", verboseLogs.isChecked())
+                    .apply();
+                setStatus("runtime settings saved. close and reopen the container to apply them.");
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
     }
 
     private void addFeatureSection(String title, int[] featureIds) {

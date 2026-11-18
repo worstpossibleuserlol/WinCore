@@ -16,7 +16,7 @@ jobs:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       WINCORE_VERSION: 7.0.0
-      WINCORE_VERSION_CODE: 70006
+      WINCORE_VERSION_CODE: 70007
     steps:
       - name: Checkout WinCore and upstream submodules
         uses: actions/checkout@v4
@@ -136,6 +136,13 @@ jobs:
           grep -q 'Box64 executable is missing or invalid immediately before launch' upstream/app/app/src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java
           grep -q 'WinCore-Guest-Process-Waiter' upstream/app/app/src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java
           grep -q 'startupHandler.postDelayed(startupTimeout, 60000L)' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
+          grep -q 'Runtime Settings' overlay/src/main/java/com/winlator/WinCoreSevenActivity.java
+          grep -q 'private void showRuntimeSettings()' overlay/src/main/java/com/winlator/WinCoreSevenActivity.java
+          grep -q 'runtime_conservative_box64' upstream/app/app/src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java
+          grep -q 'runtime_disable_wine_sync' upstream/app/app/src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java
+          grep -q 'runtime_verbose_logs' upstream/app/app/src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java
+          grep -q 'Could not resolve Wine executable from PATH' upstream/app/app/src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java
+          grep -q 'BOX64_DYNAREC=' upstream/app/app/src/main/java/com/winlator/core/ProcessHelper.java
           grep -q 'versionName "7.0.0"' upstream/app/app/build.gradle
 
       - name: Verify WinCore 7.0.0 features, About dialog, text colors, and icon integrity
@@ -327,7 +334,8 @@ jobs:
           test -s "$BOX64_TMP"
           file "$BOX64_TMP"
           readelf -h "$BOX64_TMP" | grep -E 'Class:|Data:|Machine:'
-          readelf -l "$BOX64_TMP" | grep -E 'INTERP|Requesting program interpreter' || true
+          INTERP_PATH="$(readelf -l "$BOX64_TMP" | sed -n 's/.*Requesting program interpreter: \(.*\)]/\1/p')"
+          test "$INTERP_PATH" = "/data/data/com.winlator/files/rootfs/lib/ld-linux-aarch64.so.1"
           rm -f "$BOX64_TMP"
 
       - name: Build debug APK
