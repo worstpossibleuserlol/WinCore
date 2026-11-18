@@ -237,6 +237,40 @@ if "case R.id.menu_item_wincore_workspace" not in main_source:
         "MainActivity direct Workspace navigation"
     )
 
+# Put a persistent Workspace shortcut on the main screen itself. The drawer and
+# Settings entries remain available, but the primary entry must not be hidden.
+main_layout = app / "src/main/res/layout/main_activity.xml"
+layout_source = main_layout.read_text(encoding="utf-8")
+frame_anchor = """        <FrameLayout
+            android:id="@+id/FLFragmentContainer""""
+workspace_button = """        <Button
+            android:id="@+id/BTWinCoreWorkspaceHome"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="6dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginBottom="6dp"
+            android:text="@string/wincore_7_workspace"
+            android:textAllCaps="false" />
+
+"""
+if "BTWinCoreWorkspaceHome" not in layout_source:
+    replace_once(main_layout, frame_anchor, workspace_button + frame_anchor,
+        "always-visible main screen Workspace button")
+
+main_activity = app / "src/main/java/com/winlator/MainActivity.java"
+home_button_anchor = "        setContentView(R.layout.main_activity);"
+home_button_listener = """
+        findViewById(R.id.BTWinCoreWorkspaceHome).setOnClickListener(v ->
+            startActivity(new Intent(this, WinCoreSevenActivity.class)));
+"""
+main_source = main_activity.read_text(encoding="utf-8")
+if "BTWinCoreWorkspaceHome" not in main_source:
+    replace_once(main_activity, home_button_anchor,
+        home_button_anchor + home_button_listener,
+        "always-visible Workspace button click listener")
+
 # Record the actual XServer session lifecycle for launch history and session summaries.
 xserver = app / "src/main/java/com/winlator/XServerDisplayActivity.java"
 start_anchor = "        ForegroundService.startSession(this);"
