@@ -148,6 +148,9 @@ public final class WinCoreSevenActivity extends Activity {
         largeText = preferences.getBoolean("large_text", false);
         buildInterface();
         loadContainers(false);
+        if (getIntent().getBooleanExtra("open_session_logs", false)) {
+            main.post(this::collectSessionLogs);
+        }
     }
 
     @Override
