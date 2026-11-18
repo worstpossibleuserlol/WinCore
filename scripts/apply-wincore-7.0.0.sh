@@ -211,6 +211,32 @@ settings_addition = '''
 '''
 replace_once(settings, settings_anchor, settings_anchor + settings_addition, "SettingsFragment Compatibility Center click listener")
 
+# Add Workspace directly to the main navigation drawer. Settings-only access is
+# too deeply nested for a primary management screen and caused users to miss it.
+menu = app / "src/main/res/menu/main_menu.xml"
+menu_anchor = '        <item android:icon="@drawable/icon_settings" android:id="@+id/menu_item_settings" android:title="@string/settings" />'
+menu_item = '        <item android:icon="@drawable/icon_settings" android:id="@+id/menu_item_wincore_workspace" android:title="@string/wincore_7_workspace" />'
+menu_source = menu.read_text(encoding="utf-8")
+if "menu_item_wincore_workspace" not in menu_source:
+    replace_once(menu, menu_anchor, menu_anchor + "\\n" + menu_item, "main drawer Workspace item")
+
+main_activity = app / "src/main/java/com/winlator/MainActivity.java"
+workspace_case_anchor = """            case R.id.menu_item_settings:
+                showFragment(new SettingsFragment());
+                break;"""
+workspace_case = workspace_case_anchor + """
+            case R.id.menu_item_wincore_workspace:
+                startActivity(new Intent(this, WinCoreSevenActivity.class));
+                break;"""
+main_source = main_activity.read_text(encoding="utf-8")
+if "case R.id.menu_item_wincore_workspace" not in main_source:
+    replace_once(
+        main_activity,
+        workspace_case_anchor,
+        workspace_case,
+        "MainActivity direct Workspace navigation"
+    )
+
 # Record the actual XServer session lifecycle for launch history and session summaries.
 xserver = app / "src/main/java/com/winlator/XServerDisplayActivity.java"
 start_anchor = "        ForegroundService.startSession(this);"
