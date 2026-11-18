@@ -270,7 +270,7 @@ if fragment_position < 0:
 height_position = layout_source.find('android:layout_height="match_parent"', fragment_position)
 if height_position < 0 or height_position > layout_source.find("/>", fragment_position):
     raise SystemExit("Main layout fragment height anchor changed")
-layout_source = layout_source[:height_position] + 'android:layout_height="0dp"\\n            android:layout_weight="1"' + layout_source[height_position + len('android:layout_height="match_parent"'):]
+layout_source = layout_source[:height_position] + 'android:layout_height="0dp"\n            android:layout_weight="1"' + layout_source[height_position + len('android:layout_height="match_parent"'):]
 main_layout.write_text(layout_source, encoding="utf-8")
 
 main_activity = app / "src/main/java/com/winlator/MainActivity.java"
