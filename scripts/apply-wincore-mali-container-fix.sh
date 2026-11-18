@@ -1105,6 +1105,7 @@ new_split_command = """    public static String[] splitCommand(String command) {
 """
 process = process[:split_start] + new_split_command + process[split_end:]
 
+process_path.write_text(process, encoding="utf-8")
 
 guest_path = required("src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java")
 guest = guest_path.read_text(encoding="utf-8")
