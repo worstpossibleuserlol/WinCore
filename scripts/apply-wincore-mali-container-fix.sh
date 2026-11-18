@@ -813,22 +813,102 @@ detail_path.write_text(detail, encoding="utf-8")
 #    startup path no longer needs reflective access to Android's private PID.
 process_path = required("src/main/java/com/winlator/core/ProcessHelper.java")
 process = process_path.read_text(encoding="utf-8")
-start_process_method = r'''    private static void createProcessOutputThread(InputStream inputStream, String executable) {
+process = add_import(
+    process,
+    "import java.io.FileInputStream;\n",
+    "import java.io.FileOutputStream;\n",
+    "ProcessHelper persistent output file"
+)
+process = add_import(
+    process,
+    "import java.io.InputStreamReader;\n",
+    "import java.nio.charset.StandardCharsets;\n",
+    "ProcessHelper UTF-8 output encoding"
+)
+process = add_import(
+    process,
+    "import java.util.concurrent.Executors;\n",
+    "import java.util.concurrent.CountDownLatch;\nimport java.util.concurrent.TimeUnit;\n",
+    "ProcessHelper stream-drain tracking"
+)
+start_process_method = r'''    private static final Object PROCESS_OUTPUT_LOCK = new Object();
+    private static final long MAX_PROCESS_OUTPUT_BYTES = 2L * 1024L * 1024L;
+
+    private static File getProcessOutputLogFile(File workingDir) {
+        if (workingDir == null) return null;
+        File appFilesDir = workingDir.getParentFile();
+        if (appFilesDir == null) return null;
+        File logDirectory = new File(appFilesDir, "wincore7");
+        if (!logDirectory.isDirectory() && !logDirectory.mkdirs()) {
+            android.util.Log.e("WinCore/ProcessOutput", "Could not create private process log directory: " + logDirectory);
+            return null;
+        }
+        return new File(logDirectory, "ProcessOutput.log");
+    }
+
+    private static void appendProcessOutput(File logFile, String line) {
+        if (logFile == null) return;
+        synchronized (PROCESS_OUTPUT_LOCK) {
+            try {
+                if (logFile.isFile() && logFile.length() > MAX_PROCESS_OUTPUT_BYTES) {
+                    File previous = new File(logFile.getParentFile(), "ProcessOutput.previous.log");
+                    if (previous.exists() && !previous.delete()) {
+                        android.util.Log.w("WinCore/ProcessOutput", "Could not remove previous rotated process log.");
+                    }
+                    if (!logFile.renameTo(previous)) {
+                        try (FileOutputStream truncate = new FileOutputStream(logFile, false)) {
+                            truncate.flush();
+                        }
+                    }
+                }
+                byte[] bytes = (System.currentTimeMillis() + " " + line + "\n").getBytes(StandardCharsets.UTF_8);
+                try (FileOutputStream stream = new FileOutputStream(logFile, true)) {
+                    stream.write(bytes);
+                    stream.flush();
+                }
+            }
+            catch (IOException error) {
+                android.util.Log.e("WinCore/ProcessOutput", "Could not persist process output.", error);
+            }
+        }
+    }
+
+    private static void createProcessOutputThread(
+        InputStream inputStream,
+        String executable,
+        String streamName,
+        File logFile,
+        CountDownLatch drained
+    ) {
         Thread thread = new Thread(() -> {
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
-                    if (!line.trim().isEmpty()) {
-                        android.util.Log.i("WinCore/ProcessOutput", executable + ": " + line);
+                    String message = executable + " [" + streamName + "]: " + line;
+                    android.util.Log.i("WinCore/ProcessOutput", message);
+                    appendProcessOutput(logFile, message);
+                    synchronized (debugCallbacks) {
+                        if (!debugCallbacks.isEmpty()) {
+                            for (Callback<String> callback : debugCallbacks) callback.call(line);
+                        }
                     }
                 }
             }
             catch (IOException error) {
-                android.util.Log.w("WinCore/ProcessOutput", "Could not read process output for " + executable, error);
+                String message = "Output reader failed for " + executable + " [" + streamName + "]: " + error.getMessage();
+                android.util.Log.e("WinCore/ProcessOutput", message, error);
+                appendProcessOutput(logFile, message);
             }
-        }, "WinCore-Process-Diagnostics");
+            finally {
+                if (drained != null) drained.countDown();
+            }
+        }, "WinCore-Process-Output-" + streamName);
         thread.setDaemon(true);
         thread.start();
+    }
+
+    public static void recordProcessExit(File workingDir, int exitCode) {
+        appendProcessOutput(getProcessOutputLogFile(workingDir), "PROCESS_EXIT code=" + exitCode);
     }
 
     public static java.lang.Process startProcess(
@@ -837,11 +917,21 @@ start_process_method = r'''    private static void createProcessOutputThread(Inp
         File workingDir
     ) {
         java.lang.Process process = null;
+        File processLog = getProcessOutputLogFile(workingDir);
         try {
             String[] arguments = splitCommand(command);
             if (arguments.length == 0) {
                 throw new IllegalArgumentException("The process command is empty");
             }
+
+            StringBuilder argumentSummary = new StringBuilder();
+            for (String argument : arguments) {
+                if (argumentSummary.length() > 0) argumentSummary.append(" | ");
+                argumentSummary.append("[").append(argument).append("]");
+            }
+            appendProcessOutput(processLog, "PROCESS_START argv=" + argumentSummary);
+            appendProcessOutput(processLog, "WORKING_DIRECTORY=" +
+                (workingDir != null ? workingDir.getAbsolutePath() : "<default>"));
 
             ProcessBuilder processBuilder = new ProcessBuilder(arguments);
             if (workingDir != null) {
@@ -853,8 +943,8 @@ start_process_method = r'''    private static void createProcessOutputThread(Inp
                 processBuilder.directory(workingDir);
             }
 
-            if (debugCallbacks.isEmpty()) {
-                // Do not discard Box64 stderr. Merge and drain it to Android logcat.
+            boolean mergeOutput = debugCallbacks.isEmpty();
+            if (mergeOutput) {
                 processBuilder.redirectErrorStream(true);
             }
 
@@ -862,16 +952,47 @@ start_process_method = r'''    private static void createProcessOutputThread(Inp
             if (envVars != null) {
                 for (String name : envVars) environment.put(name, envVars.get(name));
             }
+            appendProcessOutput(processLog, "PATH=" + environment.get("PATH"));
+            appendProcessOutput(processLog, "LD_LIBRARY_PATH=" + environment.get("LD_LIBRARY_PATH"));
+            appendProcessOutput(processLog, "BOX64_LD_LIBRARY_PATH=" + environment.get("BOX64_LD_LIBRARY_PATH"));
+            appendProcessOutput(processLog, "WINEDEBUG=" + environment.get("WINEDEBUG"));
+            appendProcessOutput(processLog, "BOX64_LOG=" + environment.get("BOX64_LOG"));
 
             process = processBuilder.start();
+            final java.lang.Process capturedProcess = process;
+            final CountDownLatch streamsDrained = new CountDownLatch(mergeOutput ? 1 : 2);
 
-            if (!debugCallbacks.isEmpty()) {
-                createDebugThread(process.getInputStream());
-                createDebugThread(process.getErrorStream());
+            if (mergeOutput) {
+                createProcessOutputThread(
+                    process.getInputStream(), arguments[0], "stdout+stderr", processLog, streamsDrained
+                );
             }
             else {
-                createProcessOutputThread(process.getInputStream(), arguments[0]);
+                createProcessOutputThread(process.getInputStream(), arguments[0], "stdout", processLog, streamsDrained);
+                createProcessOutputThread(process.getErrorStream(), arguments[0], "stderr", processLog, streamsDrained);
             }
+
+            appendProcessOutput(
+                processLog,
+                "PROCESS_STARTED executable=" + arguments[0] +
+                    " (workingDir=" + (workingDir != null ? workingDir.getAbsolutePath() : "<default>") + ")"
+            );
+
+            Thread exitRecorder = new Thread(() -> {
+                try {
+                    int exitCode = capturedProcess.waitFor();
+                    if (!streamsDrained.await(8, TimeUnit.SECONDS)) {
+                        appendProcessOutput(processLog, "OUTPUT_DRAIN_TIMEOUT after process exit");
+                    }
+                    appendProcessOutput(processLog, "PROCESS_EXIT code=" + exitCode);
+                }
+                catch (InterruptedException error) {
+                    Thread.currentThread().interrupt();
+                    appendProcessOutput(processLog, "PROCESS_EXIT_RECORDER_INTERRUPTED");
+                }
+            }, "WinCore-Process-Exit-Recorder");
+            exitRecorder.setDaemon(true);
+            exitRecorder.start();
 
             android.util.Log.i(
                 "WinCore/ProcessHelper",
@@ -888,6 +1009,7 @@ start_process_method = r'''    private static void createProcessOutputThread(Inp
                 }
             }
             String reason = error.getMessage() != null ? error.getMessage() : error.getClass().getSimpleName();
+            appendProcessOutput(processLog, "PROCESS_START_FAILED " + reason);
             android.util.Log.e(
                 "WinCore/ProcessHelper",
                 "Failed to start command: " + command +
@@ -1554,7 +1676,10 @@ checks = {
         "preferences.edit().putString(\"current_box64_version\", box64Version).apply()"
     ],
     "src/main/java/com/winlator/core/ProcessHelper.java": [
-        "createProcessOutputThread(InputStream inputStream, String executable)",
+        "createProcessOutputThread(",
+        "ProcessOutput.log",
+        "PROCESS_START argv=",
+        "PROCESS_EXIT code=",
         "Could not launch command:",
         "processBuilder.redirectErrorStream(true)",
         "Unclosed double quote in process command",
