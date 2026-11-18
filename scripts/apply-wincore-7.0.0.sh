@@ -21,6 +21,8 @@ if [[ "$VERSION" != "7.0.0" ]]; then
 fi
 
 mkdir -p "$APP_MODULE/src/main/java/com/winlator"
+mkdir -p "$APP_MODULE/src/main/java/com/winlator/core"
+cp "$OVERLAY/src/main/java/com/winlator/core/WinCoreCommandLineParser.java" "$APP_MODULE/src/main/java/com/winlator/core/"
 cp "$OVERLAY/src/main/java/com/winlator/WinCoreCompatibilityCenterActivity.java" "$APP_MODULE/src/main/java/com/winlator/"
 cp "$OVERLAY/src/main/java/com/winlator/WinCoreSessionTracker.java" "$APP_MODULE/src/main/java/com/winlator/"
 cp "$OVERLAY/src/main/java/com/winlator/WinCoreSevenActivity.java" "$APP_MODULE/src/main/java/com/winlator/"
@@ -258,6 +260,18 @@ workspace_button = """        <Button
 if "BTWinCoreWorkspaceHome" not in layout_source:
     replace_once(main_layout, frame_anchor, workspace_button + frame_anchor,
         "always-visible main screen Workspace button")
+
+# The fragment occupies the remaining screen height after adding the button.
+layout_source = main_layout.read_text(encoding="utf-8")
+fragment_id = 'android:id="@+id/FLFragmentContainer"'
+fragment_position = layout_source.find(fragment_id)
+if fragment_position < 0:
+    raise SystemExit("Main layout is missing FLFragmentContainer")
+height_position = layout_source.find('android:layout_height="match_parent"', fragment_position)
+if height_position < 0 or height_position > layout_source.find("/>", fragment_position):
+    raise SystemExit("Main layout fragment height anchor changed")
+layout_source = layout_source[:height_position] + 'android:layout_height="0dp"\\n            android:layout_weight="1"' + layout_source[height_position + len('android:layout_height="match_parent"'):]
+main_layout.write_text(layout_source, encoding="utf-8")
 
 main_activity = app / "src/main/java/com/winlator/MainActivity.java"
 home_button_anchor = "        setContentView(R.layout.main_activity);"
@@ -784,6 +798,11 @@ new_startup = """        Executors.newSingleThreadExecutor().execute(() -> {
                         .setTitle("Container failed to start")
                         .setMessage(report)
                         .setPositiveButton("Return to WinCore", (dialog, which) -> finish())
+                        .setNegativeButton("Session Logs", (dialog, which) -> {
+                            Intent workspaceIntent = new Intent(this, WinCoreSevenActivity.class);
+                            workspaceIntent.putExtra("open_session_logs", true);
+                            startActivity(workspaceIntent);
+                        })
                         .setNeutralButton("Copy details", (dialog, which) -> {
                             android.content.ClipboardManager clipboard =
                                 (android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
