@@ -218,7 +218,7 @@ menu_anchor = '        <item android:icon="@drawable/icon_settings" android:id="
 menu_item = '        <item android:icon="@drawable/icon_settings" android:id="@+id/menu_item_wincore_workspace" android:title="@string/wincore_7_workspace" />'
 menu_source = menu.read_text(encoding="utf-8")
 if "menu_item_wincore_workspace" not in menu_source:
-    replace_once(menu, menu_anchor, menu_anchor + "\\n" + menu_item, "main drawer Workspace item")
+    replace_once(menu, menu_anchor, menu_anchor + "\n" + menu_item, "main drawer Workspace item")
 
 main_activity = app / "src/main/java/com/winlator/MainActivity.java"
 workspace_case_anchor = """            case R.id.menu_item_settings:
