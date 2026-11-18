@@ -16,7 +16,7 @@ jobs:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       WINCORE_VERSION: 7.0.0
-      WINCORE_VERSION_CODE: 70005
+      WINCORE_VERSION_CODE: 70006
     steps:
       - name: Checkout WinCore and upstream submodules
         uses: actions/checkout@v4
@@ -112,6 +112,15 @@ jobs:
       - name: Apply Mali compatibility and container reliability fixes (WinCore 7.0.0)
         run: bash scripts/apply-wincore-mali-container-fix.sh upstream
 
+      - name: Test WinCore command-line argument parser
+        run: |
+          set -euxo pipefail
+          TEST_CLASSES="$(mktemp -d)"
+          javac -d "$TEST_CLASSES" \
+            overlay/src/main/java/com/winlator/core/WinCoreCommandLineParser.java \
+            tests/WinCoreCommandLineParserTest.java
+          java -cp "$TEST_CLASSES" com.winlator.core.WinCoreCommandLineParserTest
+
       - name: Verify Mali and container reliability patch
         run: |
           set -euxo pipefail
@@ -123,6 +132,7 @@ jobs:
           grep -q 'CBWinCoreMaliVirGLFallback' upstream/app/app/src/main/res/layout/settings_fragment.xml
           grep -q 'getLastOperationError()' upstream/app/app/src/main/java/com/winlator/container/ContainerManager.java
           grep -q 'ProcessHelper.startProcess(command, envVars, rootDir)' upstream/app/app/src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java
+          grep -q 'WinCoreCommandLineParser.split(command)' upstream/app/app/src/main/java/com/winlator/core/ProcessHelper.java
           grep -q 'Box64 executable is missing or invalid immediately before launch' upstream/app/app/src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java
           grep -q 'WinCore-Guest-Process-Waiter' upstream/app/app/src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java
           grep -q 'startupHandler.postDelayed(startupTimeout, 60000L)' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
@@ -295,6 +305,9 @@ jobs:
           grep -q 'PROCESS_EXIT code=' upstream/app/app/src/main/java/com/winlator/core/ProcessHelper.java
           grep -q 'showSessionLogsDialog(lastLogs)' upstream/app/app/src/main/java/com/winlator/WinCoreSevenActivity.java
           grep -q 'Button sessionLogs' upstream/app/app/src/main/java/com/winlator/WinCoreSevenActivity.java
+          grep -q 'BTWinCore7Workspace' upstream/app/app/src/main/res/layout/settings_fragment.xml
+          grep -q 'open_session_logs' upstream/app/app/src/main/java/com/winlator/WinCoreSevenActivity.java
+          grep -q 'open_session_logs' upstream/app/app/src/main/java/com/winlator/XServerDisplayActivity.java
 
       - name: Validate packaged Box64 runtime archive
         run: |
