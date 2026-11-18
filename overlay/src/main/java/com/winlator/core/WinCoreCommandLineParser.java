@@ -7,7 +7,7 @@ import java.util.ArrayList;
  *
  * Quotes group one argument; they are syntax and are never included in argv.
  * Backslash-space outside quotes is Winlator's existing escaped-space form.
- * Other backslashes are preserved so Windows paths such as C:\\windows remain intact.
+ * Other backslashes are preserved so Windows paths such as C:\windows remain intact.
  */
 public final class WinCoreCommandLineParser {
     private WinCoreCommandLineParser() { }
@@ -24,14 +24,14 @@ public final class WinCoreCommandLineParser {
             char current = command.charAt(i);
             char next = i + 1 < command.length() ? command.charAt(i + 1) : 0;
 
-            if (current == '\\\\' && next == '"') {
+            if (current == '\\' && next == '"') {
                 value.append('"');
                 tokenStarted = true;
                 i++;
                 continue;
             }
 
-            if (!inQuotes && current == '\\\\' && next == ' ') {
+            if (!inQuotes && current == '\\' && next == ' ') {
                 value.append(' ');
                 tokenStarted = true;
                 i++;
