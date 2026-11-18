@@ -16,7 +16,7 @@ jobs:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       WINCORE_VERSION: 7.0.0
-      WINCORE_VERSION_CODE: 70004
+      WINCORE_VERSION_CODE: 70005
     steps:
       - name: Checkout WinCore and upstream submodules
         uses: actions/checkout@v4
@@ -288,6 +288,8 @@ jobs:
           ! grep -q 'Executors.newSingleThreadExecutor().execute' upstream/app/app/src/main/java/com/winlator/container/ContainerManager.java
           grep -q 'menu_item_wincore_workspace' upstream/app/app/src/main/res/menu/main_menu.xml
           grep -q 'case R.id.menu_item_wincore_workspace' upstream/app/app/src/main/java/com/winlator/MainActivity.java
+          grep -q 'BTWinCoreWorkspaceHome' upstream/app/app/src/main/res/layout/main_activity.xml
+          grep -q 'BTWinCoreWorkspaceHome' upstream/app/app/src/main/java/com/winlator/MainActivity.java
           grep -q 'ProcessOutput.log' upstream/app/app/src/main/java/com/winlator/core/ProcessHelper.java
           grep -q 'PROCESS_START argv=' upstream/app/app/src/main/java/com/winlator/core/ProcessHelper.java
           grep -q 'PROCESS_EXIT code=' upstream/app/app/src/main/java/com/winlator/core/ProcessHelper.java
