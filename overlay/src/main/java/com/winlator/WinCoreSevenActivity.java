@@ -196,8 +196,11 @@ public final class WinCoreSevenActivity extends Activity {
         choose.setOnClickListener(v -> chooseContainer());
         Button refresh = makeButton("refresh");
         refresh.setOnClickListener(v -> loadContainers(true));
+        Button sessionLogs = makeButton("Session Logs");
+        sessionLogs.setOnClickListener(v -> collectSessionLogs());
         selectionRow.addView(choose, new LinearLayout.LayoutParams(0, dp(48), 1));
         selectionRow.addView(refresh, new LinearLayout.LayoutParams(0, dp(48), 1));
+        selectionRow.addView(sessionLogs, new LinearLayout.LayoutParams(0, dp(48), 1));
         column.addView(selectionRow, matchWrap());
 
         containerSearch = new EditText(this);
@@ -1127,29 +1130,113 @@ public final class WinCoreSevenActivity extends Activity {
     private void collectSessionLogs() {
         progress.setVisibility(View.VISIBLE);
         progress.setIndeterminate(true);
-        setStatus("collecting available Android app log lines…");
+        setStatus("collecting saved Box64/Wine process output and Android diagnostics…");
         io.execute(() -> {
             StringBuilder out = new StringBuilder();
+            File processLog = new File(getFilesDir(), "wincore7/ProcessOutput.log");
+            if (processLog.isFile()) {
+                out.append("===== PERSISTED BOX64 / WINE PROCESS OUTPUT =====\n");
+                try { out.append(readText(processLog)).append("\n"); }
+                catch (Exception error) {
+                    out.append("Could not read persisted process output: ").append(safeMessage(error)).append("\n");
+                }
+            }
+            else {
+                out.append("No persistent Box64/Wine process log exists yet. Start the container once after installing this build, then collect logs again.\n");
+            }
+
+            out.append("\n===== ANDROID LOGCAT (WINCORE / BOX64 / WINE) =====\n");
             try {
-                Process process = new ProcessBuilder("logcat", "-d", "-t", "2000").redirectErrorStream(true).start();
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                Process process = new ProcessBuilder("logcat", "-d", "-v", "threadtime", "-t", "4000")
+                    .redirectErrorStream(true).start();
+                try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8)
+                )) {
                     String line;
                     while ((line = reader.readLine()) != null) {
-                        if (line.contains("com.winlator") || line.contains("WinCore") || line.toLowerCase(Locale.ROOT).contains("fatal exception")) out.append(line).append("\n");
+                        String lower = line.toLowerCase(Locale.ROOT);
+                        if (line.contains("WinCore/") || line.contains("WinCore") ||
+                            line.contains("Box64") || lower.contains("wine") ||
+                            lower.contains("fatal exception") || lower.contains("fatal signal")) {
+                            out.append(line).append("\n");
+                        }
                     }
                 }
                 process.waitFor();
             }
-            catch (Exception error) { out.append("Android did not allow app log collection: ").append(safeMessage(error)); }
+            catch (Exception error) {
+                out.append("Android logcat collection was unavailable: ").append(safeMessage(error)).append("\n");
+            }
+
+            if (out.length() == 0) out.append("No Box64/Wine or Android diagnostic output was captured.");
             lastLogs = out.toString();
             try {
                 File file = new File(getFilesDir(), "wincore7/last-session.log");
-                file.getParentFile().mkdirs();
-                try (FileOutputStream stream = new FileOutputStream(file)) { stream.write(lastLogs.getBytes(StandardCharsets.UTF_8)); }
+                File parent = file.getParentFile();
+                if (parent != null && !parent.isDirectory()) parent.mkdirs();
+                try (FileOutputStream stream = new FileOutputStream(file)) {
+                    stream.write(lastLogs.getBytes(StandardCharsets.UTF_8));
+                }
             }
-            catch (Exception ignored) { }
-            main.post(() -> { progress.setVisibility(View.GONE); setStatus("captured " + lastLogs.split("\\R").length + " available log line(s). Android may restrict system-wide logs."); });
+            catch (Exception error) {
+                out.append("\nCould not save the combined session log: ").append(safeMessage(error));
+                lastLogs = out.toString();
+            }
+
+            main.post(() -> {
+                progress.setVisibility(View.GONE);
+                setStatus("Session Logs collected. The captured output is shown below and can be copied or exported.");
+                showSessionLogsDialog(lastLogs);
+            });
         });
+    }
+
+    private void showSessionLogsDialog(String logs) {
+        String display = logs == null || logs.trim().isEmpty()
+            ? "No session output has been captured yet."
+            : logs;
+        final int displayLimit = 250000;
+        if (display.length() > displayLimit) {
+            display = "[Showing the latest " + displayLimit + " characters. Use Export for the complete log.]\n\n" +
+                display.substring(display.length() - displayLimit);
+        }
+
+        TextView content = new TextView(this);
+        content.setText(display);
+        content.setTextIsSelectable(true);
+        content.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        content.setTypeface(android.graphics.Typeface.MONOSPACE);
+        content.setPadding(dp(12), dp(8), dp(12), dp(8));
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(false);
+        scroll.addView(content, new ScrollView.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        new AlertDialog.Builder(this)
+            .setTitle("WinCore Session Logs")
+            .setView(scroll)
+            .setPositiveButton("Copy", (dialog, which) -> {
+                android.content.ClipboardManager clipboard =
+                    (android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+                if (clipboard != null) {
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("WinCore Session Logs", logs));
+                    setStatus("Session Logs copied to clipboard.");
+                }
+            })
+            .setNeutralButton("Export", (dialog, which) -> exportSessionLogs())
+            .setNegativeButton("Close", null)
+            .show();
+    }
+
+    private void exportSessionLogs() {
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("text/plain");
+        intent.putExtra(Intent.EXTRA_TITLE, "WinCore-Session-Logs.txt");
+        startActivityForResult(intent, REQUEST_LOG_EXPORT);
     }
 
     private void analyzeCrashReport() {
