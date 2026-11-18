@@ -1133,16 +1133,26 @@ public final class WinCoreSevenActivity extends Activity {
         setStatus("collecting saved Box64/Wine process output and Android diagnostics…");
         io.execute(() -> {
             StringBuilder out = new StringBuilder();
-            File processLog = new File(getFilesDir(), "wincore7/ProcessOutput.log");
-            if (processLog.isFile()) {
-                out.append("===== PERSISTED BOX64 / WINE PROCESS OUTPUT =====\n");
-                try { out.append(readText(processLog)).append("\n"); }
+            File logDirectory = new File(getFilesDir(), "wincore7");
+            File previousProcessLog = new File(logDirectory, "ProcessOutput.previous.log");
+            File processLog = new File(logDirectory, "ProcessOutput.log");
+            boolean foundProcessOutput = false;
+            if (previousProcessLog.isFile()) {
+                out.append("===== PREVIOUS BOX64 / WINE PROCESS OUTPUT (ROTATED) =====\\n");
+                try { out.append(readText(previousProcessLog)).append("\\n"); foundProcessOutput = true; }
                 catch (Exception error) {
-                    out.append("Could not read persisted process output: ").append(safeMessage(error)).append("\n");
+                    out.append("Could not read previous process output: ").append(safeMessage(error)).append("\\n");
                 }
             }
-            else {
-                out.append("No persistent Box64/Wine process log exists yet. Start the container once after installing this build, then collect logs again.\n");
+            if (processLog.isFile()) {
+                out.append("===== LATEST BOX64 / WINE PROCESS OUTPUT =====\\n");
+                try { out.append(readText(processLog)).append("\\n"); foundProcessOutput = true; }
+                catch (Exception error) {
+                    out.append("Could not read latest process output: ").append(safeMessage(error)).append("\\n");
+                }
+            }
+            if (!foundProcessOutput) {
+                out.append("No persistent Box64/Wine process log exists yet. Start the container once after installing this build, then collect logs again. The log path is files/wincore7/ProcessOutput.log.\\n");
             }
 
             out.append("\n===== ANDROID LOGCAT (WINCORE / BOX64 / WINE) =====\n");
